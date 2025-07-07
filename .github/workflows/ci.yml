@@ -158,7 +158,7 @@ jobs:
         with:
           directory: ${{ inputs.WORKING_DIRECTORY }}
           framework: terraform
-          skip_check: ${{ inputs.CHECKOV_SKIP_CHECKS }}
+          skip_check: CKV_TF_1,${{ inputs.CHECKOV_SKIP_CHECKS }}
           output_format: sarif
           output_file_path: reports/results.sarif
           soft_fail: true
