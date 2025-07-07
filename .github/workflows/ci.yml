@@ -108,8 +108,6 @@ jobs:
       contents: read
       pull-requests: write
       security-events: write
-      actions: read
-      repository-projects: read
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -296,6 +294,8 @@ jobs:
           terraform_version: ${{ inputs.TERRAFORM_VERSION }}
           
       - name: Terraform Init
+        env:
+          GITHUB_TOKEN: ${{ secrets.ACTION_API_TOKEN }}
         run: terraform init
         working-directory: ${{ inputs.WORKING_DIRECTORY }}
         
@@ -369,6 +369,8 @@ jobs:
           terraform_version: ${{ inputs.TERRAFORM_VERSION }}
           
       - name: Terraform Init
+        env:
+          GITHUB_TOKEN: ${{ secrets.ACTION_API_TOKEN }}
         run: terraform init
         working-directory: ${{ inputs.WORKING_DIRECTORY }}
         
