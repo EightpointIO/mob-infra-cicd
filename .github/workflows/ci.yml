@@ -187,12 +187,20 @@ jobs:
         with:
           name: checkov-security-results
           path: reports/results.sarif
-          retention-days: 30
+          retention-days: 21
           
       - name: Terraform Plan
         id: plan
         run: |
-          terraform plan -no-color -out=tfplan > plan_output.txt 2>&1
+          echo "🔄 Running terraform plan..."
+          if terraform plan -no-color -out=tfplan > plan_output.txt 2>&1; then
+            echo "✅ Terraform plan completed successfully"
+            echo "plan_result=success" >> $GITHUB_OUTPUT
+          else
+            echo "❌ Terraform plan failed"
+            echo "plan_result=failed" >> $GITHUB_OUTPUT
+          fi
+          echo "📄 Plan output:"
           cat plan_output.txt
         working-directory: ${{ inputs.WORKING_DIRECTORY }}
         continue-on-error: true
@@ -222,7 +230,7 @@ jobs:
             #### Terraform Init ⚙️ \`${{ steps.init.outcome }}\`
             #### Terraform Validate 🤖 \`${{ steps.validate.outcome }}\`
             #### Security Scan 🔒 \`${{ steps.checkov.outcome }}\`
-            #### Terraform Plan 📖 \`${{ steps.plan.outcome }}\`
+            #### Terraform Plan 📖 \`${{ steps.plan.outcome }}\` (${{ steps.plan.outputs.plan_result || 'unknown' }})
             
             <details><summary>Show Plan</summary>
             
