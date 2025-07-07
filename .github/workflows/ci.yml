@@ -149,6 +149,9 @@ jobs:
         run: terraform validate
         working-directory: ${{ inputs.WORKING_DIRECTORY }}
         
+      - name: Create reports directory
+        run: mkdir -p reports
+        
       - name: Security Scan with Checkov
         id: checkov
         uses: bridgecrewio/checkov-action@master
@@ -160,9 +163,20 @@ jobs:
           output_file_path: reports/results.sarif
           soft_fail: true
           
+      - name: Check SARIF file
+        if: always()
+        run: |
+          if [ -f "reports/results.sarif" ]; then
+            echo "✅ SARIF file exists"
+            ls -la reports/results.sarif
+          else
+            echo "❌ SARIF file not found"
+            ls -la reports/ || echo "Reports directory doesn't exist"
+          fi
+          
       - name: Upload Security Results
         uses: github/codeql-action/upload-sarif@v3
-        if: always()
+        if: always() && hashFiles('reports/results.sarif') != ''
         with:
           sarif_file: reports/results.sarif
           
