@@ -116,6 +116,7 @@ jobs:
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          role-session-name: GitHubActions-${{ inputs.TEAM_NAME }}-${{ inputs.ENVIRONMENT }}-${{ inputs.OUR_PROJECT_NAME }}
           aws-region: us-east-1
           
       - name: Setup Terraform
@@ -268,6 +269,7 @@ jobs:
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          role-session-name: GitHubActions-${{ inputs.TEAM_NAME }}-${{ inputs.ENVIRONMENT }}-${{ inputs.OUR_PROJECT_NAME }}
           aws-region: us-east-1
           
       - name: Setup Terraform
@@ -333,6 +335,7 @@ jobs:
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          role-session-name: GitHubActions-${{ inputs.TEAM_NAME }}-${{ inputs.ENVIRONMENT }}-${{ inputs.OUR_PROJECT_NAME }}
           aws-region: us-east-1
           
       - name: Setup Terraform
