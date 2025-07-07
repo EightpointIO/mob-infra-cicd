@@ -108,6 +108,8 @@ jobs:
       contents: read
       pull-requests: write
       security-events: write
+      actions: read
+      repository-projects: read
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -115,6 +117,9 @@ jobs:
       - name: Configure Git for internal repos
         run: |
           git config --global url."https://${{ secrets.ACTION_API_TOKEN }}@github.com/".insteadOf "https://github.com/"
+          git config --global credential.helper store
+          echo "https://${{ secrets.ACTION_API_TOKEN }}@github.com" > ~/.git-credentials
+          echo "Git configuration applied"
         
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -136,6 +141,8 @@ jobs:
         
       - name: Terraform Init
         id: init
+        env:
+          GITHUB_TOKEN: ${{ secrets.ACTION_API_TOKEN }}
         run: terraform init
         working-directory: ${{ inputs.WORKING_DIRECTORY }}
         
@@ -272,6 +279,9 @@ jobs:
       - name: Configure Git for internal repos
         run: |
           git config --global url."https://${{ secrets.ACTION_API_TOKEN }}@github.com/".insteadOf "https://github.com/"
+          git config --global credential.helper store
+          echo "https://${{ secrets.ACTION_API_TOKEN }}@github.com" > ~/.git-credentials
+          echo "Git configuration applied"
         
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -342,6 +352,9 @@ jobs:
       - name: Configure Git for internal repos
         run: |
           git config --global url."https://${{ secrets.ACTION_API_TOKEN }}@github.com/".insteadOf "https://github.com/"
+          git config --global credential.helper store
+          echo "https://${{ secrets.ACTION_API_TOKEN }}@github.com" > ~/.git-credentials
+          echo "Git configuration applied"
         
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
