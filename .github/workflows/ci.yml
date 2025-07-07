@@ -112,6 +112,10 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         
+      - name: Configure Git for private repos
+        run: |
+          git config --global url."https://x-access-token:${{ secrets.ACTION_API_TOKEN }}@github.com/".insteadOf "https://github.com/"
+        
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -265,6 +269,10 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         
+      - name: Configure Git for private repos
+        run: |
+          git config --global url."https://x-access-token:${{ secrets.ACTION_API_TOKEN }}@github.com/".insteadOf "https://github.com/"
+        
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -330,6 +338,10 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        
+      - name: Configure Git for private repos
+        run: |
+          git config --global url."https://x-access-token:${{ secrets.ACTION_API_TOKEN }}@github.com/".insteadOf "https://github.com/"
         
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
