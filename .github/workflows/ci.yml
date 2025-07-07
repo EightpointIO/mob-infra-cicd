@@ -1,0 +1,386 @@
+name: Infrastructure CI/CD Pipeline
+
+on:
+  workflow_call:
+    inputs:
+      OUR_PROJECT_NAME:
+        required: true
+        type: string
+      TEAM_NAME:
+        required: true
+        type: string
+      TERRAFORM_VERSION:
+        required: false
+        type: string
+        default: "1.6.0"
+      ENVIRONMENT:
+        required: true
+        type: string
+      WORKING_DIRECTORY:
+        required: false
+        type: string
+        default: "."
+      CHECKOV_SKIP_CHECKS:
+        required: false
+        type: string
+        default: ""
+
+jobs:
+  assign_reviewers:
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'pull_request' && github.event.action == 'opened' }}
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+    - name: Add author as the assignee
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const owner = context.repo.owner;
+          const repo = context.repo.repo;
+          const pr_number = context.payload.pull_request.number;
+          const pr_author = context.payload.pull_request.user.login;
+
+          await github.rest.issues.addAssignees({
+            owner: owner,
+            repo: repo,
+            issue_number: pr_number,
+            assignees: [pr_author]
+          });
+    
+    - name: Add reviewers
+      uses: actions/github-script@v7
+      env:
+        GITHUB_TOKEN: ${{ secrets.ACTION_API_TOKEN }}
+      with:
+        script: |
+          const { execSync } = require('child_process');
+          const repo = context.repo.repo;
+          const pr_number = context.payload.pull_request.number;
+          const pr_author = context.payload.pull_request.user.login;
+          const token = process.env.GITHUB_TOKEN;
+          
+          try {
+            const membersData = execSync(`curl --location "https://api.github.com/orgs/EightpointIO/teams/${{ inputs.TEAM_NAME }}/members" -H "Authorization: Bearer ${token}"`);
+            const membersJSON = JSON.parse(membersData);
+            const logins = membersJSON
+              .map(member => JSON.stringify(member.login))
+              .filter(login => login != JSON.stringify(pr_author) && login != "\"ios-devops\"");
+
+            if (logins.length > 0) {
+              execSync(`curl --location "https://api.github.com/repos/EightpointIO/${repo}/pulls/${pr_number}/requested_reviewers" -H "Authorization: Bearer ${token}" -d '{"reviewers":[${logins}]}'`);
+              console.log(`✅ Added ${logins.length} reviewers to PR #${pr_number}`);
+            } else {
+              console.log(`ℹ️ No additional reviewers to add for PR #${pr_number}`);
+            }
+          } catch (error) {
+            console.log(`⚠️ Could not add reviewers: ${error.message}`);
+          }
+
+  notify_pr_on_slack:
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'pull_request' && github.event.action == 'opened' }}
+    steps:
+    - name: Send notification to Slack
+      env:
+        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_INFRASTRUCTURE_PR_WEBHOOK_URL }}
+      run: |
+        if [ -n "$SLACK_WEBHOOK_URL" ]; then
+          PR_URL="${{ github.event.pull_request.html_url }}"
+          PR_TITLE="${{ github.event.pull_request.title }}"
+          PR_OWNER="${{ github.event.pull_request.user.login }}"
+
+          curl -X POST -H 'Content-type: application/json' --data "{
+            \"text\": \"🏗️ <!here> <@${PR_OWNER}> opened Infrastructure PR for *${{ inputs.OUR_PROJECT_NAME }}* (${{ inputs.TEAM_NAME }}/${{ inputs.ENVIRONMENT }}): *<${PR_URL}|${PR_TITLE}>*\"
+          }" $SLACK_WEBHOOK_URL
+          
+          echo "✅ Slack notification sent"
+        else
+          echo "ℹ️ Slack webhook not configured, skipping notification"
+        fi
+
+  terraform_quality_checks:
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main') || startsWith(github.ref, 'refs/tags/') }}
+    permissions:
+      id-token: write
+      contents: read
+      pull-requests: write
+      security-events: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: us-east-1
+          
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ inputs.TERRAFORM_VERSION }}
+          
+      - name: Terraform Format Check
+        id: fmt
+        run: terraform fmt -check -recursive
+        working-directory: ${{ inputs.WORKING_DIRECTORY }}
+        continue-on-error: true
+        
+      - name: Terraform Init
+        id: init
+        run: terraform init
+        working-directory: ${{ inputs.WORKING_DIRECTORY }}
+        
+      - name: Terraform Validate
+        id: validate
+        run: terraform validate
+        working-directory: ${{ inputs.WORKING_DIRECTORY }}
+        
+      - name: Security Scan with Checkov
+        id: checkov
+        uses: bridgecrewio/checkov-action@master
+        with:
+          directory: ${{ inputs.WORKING_DIRECTORY }}
+          framework: terraform
+          skip_check: ${{ inputs.CHECKOV_SKIP_CHECKS }}
+          output_format: sarif
+          output_file_path: reports/results.sarif
+          soft_fail: true
+          
+      - name: Upload Security Results
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: reports/results.sarif
+          
+      - name: Terraform Plan
+        id: plan
+        run: |
+          terraform plan -no-color -out=tfplan > plan_output.txt 2>&1
+          cat plan_output.txt
+        working-directory: ${{ inputs.WORKING_DIRECTORY }}
+        continue-on-error: true
+        
+      - name: Comment PR with Results
+        uses: actions/github-script@v7
+        if: github.event_name == 'pull_request'
+        with:
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+            
+            let planOutput = "Plan output not available";
+            try {
+              planOutput = fs.readFileSync(path.join('${{ inputs.WORKING_DIRECTORY }}', 'plan_output.txt'), 'utf8');
+              // Truncate if too long for GitHub comment
+              if (planOutput.length > 60000) {
+                planOutput = planOutput.substring(0, 60000) + '\n\n... (output truncated)';
+              }
+            } catch (error) {
+              planOutput = "Could not read plan output";
+            }
+            
+            const output = `## 🏗️ Terraform Results for ${{ inputs.OUR_PROJECT_NAME }} (${{ inputs.TEAM_NAME }}/${{ inputs.ENVIRONMENT }})
+            
+            #### Terraform Format 🖌 \`${{ steps.fmt.outcome }}\`
+            #### Terraform Init ⚙️ \`${{ steps.init.outcome }}\`
+            #### Terraform Validate 🤖 \`${{ steps.validate.outcome }}\`
+            #### Security Scan 🔒 \`${{ steps.checkov.outcome }}\`
+            #### Terraform Plan 📖 \`${{ steps.plan.outcome }}\`
+            
+            <details><summary>Show Plan</summary>
+            
+            \`\`\`
+            ${planOutput}
+            \`\`\`
+            
+            </details>
+            
+            *Pusher: @${{ github.actor }}, Action: \`${{ github.event_name }}\`*`;
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: output
+            })
+
+  check_if_merge:
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+    outputs:
+      is_merge: ${{ steps.check.outputs.is_merge }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - name: Check if merge commit
+        id: check
+        run: |
+          parents=$(git cat-file -p HEAD | grep '^parent ' | wc -l)
+          if [ $parents -gt 1 ]; then
+            echo "is_merge=true" >> $GITHUB_OUTPUT
+            echo "✅ This is a merge commit - will proceed with deployment"
+          else
+            echo "is_merge=false" >> $GITHUB_OUTPUT
+            echo "❌ This is not a merge commit - skipping deployment"
+          fi
+
+  quality_gate:
+    runs-on: ubuntu-latest
+    if: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/main') || startsWith(github.ref, 'refs/tags/') }}
+    needs: [terraform_quality_checks]
+    steps:
+      - name: Quality Gate Passed
+        run: |
+          echo "✅ All infrastructure quality checks passed!"
+          echo "🔄 Deployment process can continue..."
+      - name: Cancel workflow on failure
+        if: ${{ failure() }}
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const run_id = context.runId;
+            const repo = context.repo;
+            console.log('❌ Quality checks failed. Cancelling workflow...');
+            await github.rest.actions.cancelWorkflowRun({
+              owner: repo.owner,
+              repo: repo.repo,
+              run_id: run_id
+            });
+
+  deploy_to_dev:
+    runs-on: ubuntu-latest
+    if: ${{ needs.check_if_merge.outputs.is_merge == 'true' }}
+    needs: [check_if_merge, quality_gate]
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: us-east-1
+          
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ inputs.TERRAFORM_VERSION }}
+          
+      - name: Terraform Init
+        run: terraform init
+        working-directory: ${{ inputs.WORKING_DIRECTORY }}
+        
+      - name: Terraform Apply
+        run: terraform apply -auto-approve
+        working-directory: ${{ inputs.WORKING_DIRECTORY }}
+
+  notify_dev_deployment:
+    runs-on: ubuntu-latest
+    if: ${{ needs.check_if_merge.outputs.is_merge == 'true' }}
+    needs: [check_if_merge, deploy_to_dev]
+    steps:
+      - name: Send notification to Slack
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_INFRASTRUCTURE_WEBHOOK_URL }}
+        run: |
+          if [ -n "$SLACK_WEBHOOK_URL" ]; then
+            COMMIT_MESSAGE="${{ github.event.head_commit.message }}"
+            curl -X POST -H 'Content-type: application/json' --data "{
+              \"username\": \"InfraBot\",
+              \"icon_emoji\": \":construction:\",
+              \"attachments\": [
+                {
+                  \"color\": \"#36a64f\",
+                  \"title\": \"🏗️ DEVELOPMENT ${{ inputs.OUR_PROJECT_NAME }} Infrastructure Deployed\",
+                  \"fields\": [
+                    {\"title\": \"Team\", \"value\": \"${{ inputs.TEAM_NAME }}\", \"short\": true},
+                    {\"title\": \"Environment\", \"value\": \"${{ inputs.ENVIRONMENT }}\", \"short\": true}
+                  ],
+                  \"text\": \"Commit: ${COMMIT_MESSAGE}\",
+                  \"footer\": \"Eightpoint Infrastructure Pipeline | Author: ${{ github.actor }}\",
+                  \"ts\": $(date +%s)
+                }
+              ]
+            }" $SLACK_WEBHOOK_URL
+            
+            echo "✅ Slack notification sent"
+          else
+            echo "ℹ️ Slack webhook not configured, skipping notification"
+          fi
+
+  deploy_to_prod:
+    runs-on: ubuntu-latest
+    if: ${{ startsWith(github.ref, 'refs/tags/') }}
+    needs: [quality_gate]
+    environment: production
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: us-east-1
+          
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ inputs.TERRAFORM_VERSION }}
+          
+      - name: Terraform Init
+        run: terraform init
+        working-directory: ${{ inputs.WORKING_DIRECTORY }}
+        
+      - name: Terraform Plan
+        run: terraform plan -out=tfplan
+        working-directory: ${{ inputs.WORKING_DIRECTORY }}
+        
+      - name: Terraform Apply
+        run: terraform apply tfplan
+        working-directory: ${{ inputs.WORKING_DIRECTORY }}
+
+  notify_prod_deployment:
+    runs-on: ubuntu-latest
+    needs: [deploy_to_prod]
+    steps:
+      - name: Send notification to Slack
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_INFRASTRUCTURE_WEBHOOK_URL }}
+        run: |
+          if [ -n "$SLACK_WEBHOOK_URL" ]; then
+            TAG_NAME=${GITHUB_REF#refs/tags/}
+            curl -X POST -H 'Content-type: application/json' --data "{
+              \"username\": \"InfraBot\",
+              \"icon_emoji\": \":rocket:\",
+              \"attachments\": [
+                {
+                  \"color\": \"#ff6b6b\",
+                  \"title\": \"🚀 PRODUCTION ${{ inputs.OUR_PROJECT_NAME }} Infrastructure Deployed\",
+                  \"fields\": [
+                    {\"title\": \"Team\", \"value\": \"${{ inputs.TEAM_NAME }}\", \"short\": true},
+                    {\"title\": \"Environment\", \"value\": \"${{ inputs.ENVIRONMENT }}\", \"short\": true},
+                    {\"title\": \"Version\", \"value\": \"${TAG_NAME}\", \"short\": true}
+                  ],
+                  \"footer\": \"Eightpoint Infrastructure Pipeline | Author: ${{ github.actor }}\",
+                  \"ts\": $(date +%s)
+                }
+              ]
+            }" $SLACK_WEBHOOK_URL
+            
+            echo "✅ Slack notification sent"
+          else
+            echo "ℹ️ Slack webhook not configured, skipping notification"
+          fi

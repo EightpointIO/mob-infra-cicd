@@ -1,0 +1,287 @@
+# Environment-specific configurations for Infrastructure CI/CD
+# Used by mob-infrastructure-cicd workflows
+
+environments:
+  development:
+    alias: dev
+    description: "Development environment for testing and validation"
+    auto_deploy: true
+    require_approval: false
+    terraform_settings:
+      plan_timeout: 15
+      apply_timeout: 30
+      auto_approve: true
+      parallelism: 10
+    monitoring:
+      enable_detailed_monitoring: false
+      log_retention_days: 7
+      enable_performance_insights: false
+    backup_settings:
+      rds_backup_retention: 1
+      s3_lifecycle_days: 30
+      enable_cross_region_backup: false
+    scaling:
+      min_instances: 1
+      max_instances: 3
+      enable_auto_scaling: true
+    security:
+      enable_flow_logs: false
+      enable_config_recorder: false
+      enable_cloudtrail: false
+      encryption_at_rest: true
+      encryption_in_transit: true
+    cost_optimization:
+      use_spot_instances: true
+      enable_scheduled_scaling: true
+      rightsizing_enabled: true
+    networking:
+      enable_nat_gateway: true
+      enable_vpn_gateway: false
+      enable_transit_gateway: false
+
+  production:
+    alias: prod
+    description: "Production environment with high availability and security"
+    auto_deploy: false
+    require_approval: true
+    terraform_settings:
+      plan_timeout: 30
+      apply_timeout: 60
+      auto_approve: false
+      parallelism: 5
+    monitoring:
+      enable_detailed_monitoring: true
+      log_retention_days: 30
+      enable_performance_insights: true
+    backup_settings:
+      rds_backup_retention: 7
+      s3_lifecycle_days: 90
+      enable_cross_region_backup: true
+    scaling:
+      min_instances: 2
+      max_instances: 10
+      enable_auto_scaling: true
+    security:
+      enable_flow_logs: true
+      enable_config_recorder: true
+      enable_cloudtrail: true
+      encryption_at_rest: true
+      encryption_in_transit: true
+    cost_optimization:
+      use_spot_instances: false
+      enable_scheduled_scaling: false
+      rightsizing_enabled: true
+    networking:
+      enable_nat_gateway: true
+      enable_vpn_gateway: true
+      enable_transit_gateway: true
+
+  global:
+    alias: global
+    description: "Global resources shared across environments"
+    auto_deploy: false
+    require_approval: true
+    terraform_settings:
+      plan_timeout: 20
+      apply_timeout: 45
+      auto_approve: false
+      parallelism: 3
+    monitoring:
+      enable_detailed_monitoring: true
+      log_retention_days: 90
+      enable_performance_insights: false
+    backup_settings:
+      rds_backup_retention: 30
+      s3_lifecycle_days: 365
+      enable_cross_region_backup: true
+    scaling:
+      min_instances: 1
+      max_instances: 2
+      enable_auto_scaling: false
+    security:
+      enable_flow_logs: true
+      enable_config_recorder: true
+      enable_cloudtrail: true
+      encryption_at_rest: true
+      encryption_in_transit: true
+    cost_optimization:
+      use_spot_instances: false
+      enable_scheduled_scaling: false
+      rightsizing_enabled: false
+    networking:
+      enable_nat_gateway: false
+      enable_vpn_gateway: false
+      enable_transit_gateway: false
+
+# Service-specific configurations
+services:
+  eks:
+    development:
+      node_instance_types: ["t3.medium", "t3.large"]
+      min_nodes: 1
+      max_nodes: 3
+      enable_cluster_autoscaler: true
+      enable_spot_instances: true
+      kubernetes_version: "1.27"
+    production:
+      node_instance_types: ["m5.large", "m5.xlarge"]
+      min_nodes: 2
+      max_nodes: 10
+      enable_cluster_autoscaler: true
+      enable_spot_instances: false
+      kubernetes_version: "1.27"
+
+  rds:
+    development:
+      instance_class: "db.t3.micro"
+      multi_az: false
+      backup_retention_period: 1
+      deletion_protection: false
+      enable_performance_insights: false
+    production:
+      instance_class: "db.r5.large"
+      multi_az: true
+      backup_retention_period: 7
+      deletion_protection: true
+      enable_performance_insights: true
+
+  elasticache:
+    development:
+      node_type: "cache.t3.micro"
+      num_cache_nodes: 1
+      enable_multi_az: false
+      snapshot_retention_limit: 1
+    production:
+      node_type: "cache.r5.large"
+      num_cache_nodes: 2
+      enable_multi_az: true
+      snapshot_retention_limit: 5
+
+  s3:
+    development:
+      versioning: true
+      lifecycle_rules:
+        - transition_to_ia: 30
+        - transition_to_glacier: 90
+        - expiration: 365
+      enable_cross_region_replication: false
+    production:
+      versioning: true
+      lifecycle_rules:
+        - transition_to_ia: 30
+        - transition_to_glacier: 90
+        - transition_to_deep_archive: 365
+        - expiration: 2555  # 7 years
+      enable_cross_region_replication: true
+
+# Compliance and governance settings
+compliance:
+  aws_config:
+    enable_in_environments: ["production", "global"]
+    rules:
+      - s3-bucket-public-read-prohibited
+      - s3-bucket-public-write-prohibited
+      - encrypted-volumes
+      - root-mfa-enabled
+      - iam-password-policy
+      - cloudtrail-enabled
+
+  security_hub:
+    enable_in_environments: ["production"]
+    standards:
+      - aws-foundational-security-standard
+      - cis-aws-foundations-benchmark
+
+  aws_cloudtrail:
+    enable_in_environments: ["production", "global"]
+    include_global_service_events: true
+    enable_log_file_validation: true
+    s3_key_prefix: "cloudtrail-logs"
+
+# Tagging strategy
+tagging:
+  required_tags:
+    - Team
+    - Environment
+    - Project
+    - ManagedBy
+  default_tags:
+    ManagedBy: "Terraform"
+    Owner: "Infrastructure Team"
+    CostCenter: "Engineering"
+  environment_specific_tags:
+    development:
+      CostOptimization: "Enabled"
+      AutoShutdown: "Enabled"
+    production:
+      BusinessCritical: "Yes"
+      BackupRequired: "Yes"
+      MonitoringLevel: "Enhanced"
+
+# Monitoring and alerting
+monitoring:
+  cloudwatch:
+    default_retention_days: 14
+    log_groups:
+      development:
+        retention_days: 7
+      production:
+        retention_days: 30
+      global:
+        retention_days: 90
+
+  alarms:
+    cpu_utilization:
+      development:
+        threshold: 80
+        evaluation_periods: 2
+        period: 300
+      production:
+        threshold: 70
+        evaluation_periods: 2
+        period: 300
+
+    memory_utilization:
+      development:
+        threshold: 85
+        evaluation_periods: 2
+        period: 300
+      production:
+        threshold: 80
+        evaluation_periods: 2
+        period: 300
+
+# Cost management
+cost_management:
+  budgets:
+    development:
+      monthly_limit: 1000
+      alert_threshold: 80
+    production:
+      monthly_limit: 5000
+      alert_threshold: 90
+
+  resource_optimization:
+    enable_rightsizing: true
+    enable_reserved_instance_recommendations: true
+    enable_savings_plans_recommendations: true
+
+# Disaster recovery
+disaster_recovery:
+  backup_strategy:
+    development:
+      frequency: "daily"
+      retention: 7
+      cross_region: false
+    production:
+      frequency: "daily"
+      retention: 30
+      cross_region: true
+
+  rto_targets:
+    development: "4 hours"
+    production: "1 hour"
+
+  rpo_targets:
+    development: "24 hours"
+    production: "1 hour"

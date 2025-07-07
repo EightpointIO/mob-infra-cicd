@@ -1,0 +1,133 @@
+{
+  "teams": {
+    "ios": {
+      "name": "iOS Infrastructure Team",
+      "slack_channels": {
+        "general": "#ios-infrastructure",
+        "pr": "#ios-infrastructure-pr",
+        "deployment": "#ios-infrastructure-deploy",
+        "alerts": "#ios-infrastructure-alerts"
+      },
+      "github_team": "ios",
+      "aws_account_roles": {
+        "dev": "arn:aws:iam::ACCOUNT_ID:role/GitHubActions-iOS-Dev",
+        "prod": "arn:aws:iam::ACCOUNT_ID:role/GitHubActions-iOS-Prod",
+        "global": "arn:aws:iam::ACCOUNT_ID:role/GitHubActions-iOS-Global"
+      },
+      "terraform_state_buckets": {
+        "dev": "ios-dev-terraform-state",
+        "prod": "ios-prod-terraform-state",
+        "global": "ios-global-terraform-state"
+      },
+      "environments": ["dev", "prod", "global"],
+      "default_terraform_version": "1.6.0",
+      "required_reviewers": 2,
+      "auto_deploy_environments": ["dev"],
+      "manual_approval_environments": ["prod"]
+    },
+    "android": {
+      "name": "Android Infrastructure Team",
+      "slack_channels": {
+        "general": "#android-infrastructure",
+        "pr": "#android-infrastructure-pr",  
+        "deployment": "#android-infrastructure-deploy",
+        "alerts": "#android-infrastructure-alerts"
+      },
+      "github_team": "android",
+      "aws_account_roles": {
+        "dev": "arn:aws:iam::ACCOUNT_ID:role/GitHubActions-Android-Dev",
+        "prod": "arn:aws:iam::ACCOUNT_ID:role/GitHubActions-Android-Prod",
+        "global": "arn:aws:iam::ACCOUNT_ID:role/GitHubActions-Android-Global"
+      },
+      "terraform_state_buckets": {
+        "dev": "android-dev-terraform-state",
+        "prod": "android-prod-terraform-state", 
+        "global": "android-global-terraform-state"
+      },
+      "environments": ["dev", "prod", "global"],
+      "default_terraform_version": "1.6.0",
+      "required_reviewers": 2,
+      "auto_deploy_environments": ["dev"],
+      "manual_approval_environments": ["prod"]
+    },
+    "shared": {
+      "name": "Shared Infrastructure Team",
+      "slack_channels": {
+        "general": "#shared-infrastructure",
+        "pr": "#shared-infrastructure-pr",
+        "deployment": "#shared-infrastructure-deploy", 
+        "alerts": "#shared-infrastructure-alerts"
+      },
+      "github_team": "devops",
+      "aws_account_roles": {
+        "global": "arn:aws:iam::ACCOUNT_ID:role/GitHubActions-Shared-Global"
+      },
+      "terraform_state_buckets": {
+        "global": "shared-global-terraform-state"
+      },
+      "environments": ["global"],
+      "default_terraform_version": "1.6.0", 
+      "required_reviewers": 1,
+      "auto_deploy_environments": [],
+      "manual_approval_environments": ["global"]
+    }
+  },
+  "github_organization": "EightpointIO",
+  "default_aws_region": "us-east-1",
+  "slack_member_mappings": {
+    "ios-devops": "U01234567",
+    "liviu": "U09876543"
+  },
+  "security_policies": {
+    "checkov": {
+      "skip_checks": {
+        "common": [
+          "CKV_AWS_144",
+          "CKV_AWS_145"
+        ],
+        "development": [
+          "CKV_AWS_20",
+          "CKV_AWS_57"
+        ],
+        "production": []
+      },
+      "severity_threshold": "MEDIUM"
+    },
+    "tfsec": {
+      "minimum_severity": "MEDIUM",
+      "exclude_checks": []
+    }
+  },
+  "deployment_windows": {
+    "production": {
+      "allowed_days": ["Monday", "Tuesday", "Wednesday", "Thursday"],
+      "allowed_hours": {
+        "start": "09:00",
+        "end": "17:00",
+        "timezone": "UTC"
+      }
+    },
+    "development": {
+      "allowed_days": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
+      "allowed_hours": {
+        "start": "00:00", 
+        "end": "23:59",
+        "timezone": "UTC"
+      }
+    }
+  },
+  "notification_settings": {
+    "pr_notifications": true,
+    "deployment_notifications": true,
+    "failure_notifications": true,
+    "drift_notifications": true,
+    "security_notifications": true
+  },
+  "terraform_settings": {
+    "supported_versions": ["1.5.0", "1.6.0", "1.7.0"],
+    "default_version": "1.6.0",
+    "plan_timeout_minutes": 30,
+    "apply_timeout_minutes": 60,
+    "state_lock_timeout": "10m"
+  }
+}
