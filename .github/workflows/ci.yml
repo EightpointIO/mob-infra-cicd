@@ -108,9 +108,51 @@ jobs:
       contents: read
       pull-requests: write
       security-events: write
+      actions: read
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        
+      - name: Setup workspace structure
+        id: setup-workspace
+        run: |
+          REPO_NAME="${GITHUB_REPOSITORY##*/}"
+          
+          # Handle special cases first
+          if [[ "$REPO_NAME" == "mob-infrastructure-core" ]] || [[ "$REPO_NAME" == "mob-infrastructure-cicd" ]]; then
+            echo "Infrastructure core repo - no restructuring needed"
+            echo "target_dir=." >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          # Parse repository name: {team}-infra-{env}-{service-name}
+          TEAM=$(echo "$REPO_NAME" | cut -d'-' -f1)
+          INFRA_CHECK=$(echo "$REPO_NAME" | cut -d'-' -f2)  
+          ENV=$(echo "$REPO_NAME" | cut -d'-' -f3)
+          SERVICE=$(echo "$REPO_NAME" | cut -d'-' -f4-)
+          
+          # Validate expected pattern
+          if [[ "$INFRA_CHECK" != "infra" ]]; then
+            echo "❌ Repository name doesn't follow {team}-infra-{env}-{service} pattern: $REPO_NAME"
+            echo "target_dir=." >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          # Create proper structure
+          TARGET_DIR="teams/${TEAM}/${ENV}/${SERVICE}"
+          mkdir -p "$TARGET_DIR"
+          
+          echo "📁 Creating workspace structure for: $REPO_NAME"
+          echo "   Team: $TEAM"
+          echo "   Environment: $ENV" 
+          echo "   Service: $SERVICE"
+          echo "   Target: $TARGET_DIR"
+          
+          # Move all content (preserve .git directory)
+          find . -maxdepth 1 -not -name '.' -not -name '.git' -not -name 'teams' -exec mv {} "$TARGET_DIR"/ \; 2>/dev/null || true
+          
+          echo "✅ Restructured $REPO_NAME to: $TARGET_DIR"
+          echo "target_dir=$TARGET_DIR" >> $GITHUB_OUTPUT
         
       - name: Configure Git for internal repos
         run: |
@@ -134,7 +176,7 @@ jobs:
       - name: Terraform Format Check
         id: fmt
         run: terraform fmt -check -recursive
-        working-directory: ${{ inputs.WORKING_DIRECTORY }}
+        working-directory: ${{ steps.setup-workspace.outputs.target_dir }}
         continue-on-error: true
         
       - name: Terraform Init
@@ -142,12 +184,12 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.ACTION_API_TOKEN }}
         run: terraform init
-        working-directory: ${{ inputs.WORKING_DIRECTORY }}
+        working-directory: ${{ steps.setup-workspace.outputs.target_dir }}
         
       - name: Terraform Validate
         id: validate
         run: terraform validate
-        working-directory: ${{ inputs.WORKING_DIRECTORY }}
+        working-directory: ${{ steps.setup-workspace.outputs.target_dir }}
         
       - name: Create reports directory
         run: mkdir -p reports
@@ -156,7 +198,7 @@ jobs:
         id: checkov
         uses: bridgecrewio/checkov-action@master
         with:
-          directory: ${{ inputs.WORKING_DIRECTORY }}
+          directory: ${{ steps.setup-workspace.outputs.target_dir }}
           framework: terraform
           skip_check: CKV_TF_1,${{ inputs.CHECKOV_SKIP_CHECKS }}
           output_format: sarif
@@ -202,7 +244,7 @@ jobs:
           fi
           echo "📄 Plan output:"
           cat plan_output.txt
-        working-directory: ${{ inputs.WORKING_DIRECTORY }}
+        working-directory: ${{ steps.setup-workspace.outputs.target_dir }}
         continue-on-error: true
         
       - name: Comment PR with Results
@@ -215,7 +257,7 @@ jobs:
             
             let planOutput = "Plan output not available";
             try {
-              planOutput = fs.readFileSync(path.join('${{ inputs.WORKING_DIRECTORY }}', 'plan_output.txt'), 'utf8');
+              planOutput = fs.readFileSync(path.join('${{ steps.setup-workspace.outputs.target_dir }}', 'plan_output.txt'), 'utf8');
               // Truncate if too long for GitHub comment
               if (planOutput.length > 60000) {
                 planOutput = planOutput.substring(0, 60000) + '\n\n... (output truncated)';
@@ -312,6 +354,47 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         
+      - name: Setup workspace structure
+        id: setup-workspace
+        run: |
+          REPO_NAME="${GITHUB_REPOSITORY##*/}"
+          
+          # Handle special cases first
+          if [[ "$REPO_NAME" == "mob-infrastructure-core" ]] || [[ "$REPO_NAME" == "mob-infrastructure-cicd" ]]; then
+            echo "Infrastructure core repo - no restructuring needed"
+            echo "target_dir=." >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          # Parse repository name: {team}-infra-{env}-{service-name}
+          TEAM=$(echo "$REPO_NAME" | cut -d'-' -f1)
+          INFRA_CHECK=$(echo "$REPO_NAME" | cut -d'-' -f2)  
+          ENV=$(echo "$REPO_NAME" | cut -d'-' -f3)
+          SERVICE=$(echo "$REPO_NAME" | cut -d'-' -f4-)
+          
+          # Validate expected pattern
+          if [[ "$INFRA_CHECK" != "infra" ]]; then
+            echo "❌ Repository name doesn't follow {team}-infra-{env}-{service} pattern: $REPO_NAME"
+            echo "target_dir=." >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          # Create proper structure
+          TARGET_DIR="teams/${TEAM}/${ENV}/${SERVICE}"
+          mkdir -p "$TARGET_DIR"
+          
+          echo "📁 Creating workspace structure for: $REPO_NAME"
+          echo "   Team: $TEAM"
+          echo "   Environment: $ENV" 
+          echo "   Service: $SERVICE"
+          echo "   Target: $TARGET_DIR"
+          
+          # Move all content (preserve .git directory)
+          find . -maxdepth 1 -not -name '.' -not -name '.git' -not -name 'teams' -exec mv {} "$TARGET_DIR"/ \; 2>/dev/null || true
+          
+          echo "✅ Restructured $REPO_NAME to: $TARGET_DIR"
+          echo "target_dir=$TARGET_DIR" >> $GITHUB_OUTPUT
+        
       - name: Configure Git for internal repos
         run: |
           git config --global url."https://${{ secrets.ACTION_API_TOKEN }}@github.com/".insteadOf "https://github.com/"
@@ -335,11 +418,11 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.ACTION_API_TOKEN }}
         run: terraform init
-        working-directory: ${{ inputs.WORKING_DIRECTORY }}
+        working-directory: ${{ steps.setup-workspace.outputs.target_dir }}
         
       - name: Terraform Apply
         run: terraform apply -auto-approve
-        working-directory: ${{ inputs.WORKING_DIRECTORY }}
+        working-directory: ${{ steps.setup-workspace.outputs.target_dir }}
 
   notify_dev_deployment:
     runs-on: ubuntu-latest
@@ -387,6 +470,47 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         
+      - name: Setup workspace structure
+        id: setup-workspace
+        run: |
+          REPO_NAME="${GITHUB_REPOSITORY##*/}"
+          
+          # Handle special cases first
+          if [[ "$REPO_NAME" == "mob-infrastructure-core" ]] || [[ "$REPO_NAME" == "mob-infrastructure-cicd" ]]; then
+            echo "Infrastructure core repo - no restructuring needed"
+            echo "target_dir=." >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          # Parse repository name: {team}-infra-{env}-{service-name}
+          TEAM=$(echo "$REPO_NAME" | cut -d'-' -f1)
+          INFRA_CHECK=$(echo "$REPO_NAME" | cut -d'-' -f2)  
+          ENV=$(echo "$REPO_NAME" | cut -d'-' -f3)
+          SERVICE=$(echo "$REPO_NAME" | cut -d'-' -f4-)
+          
+          # Validate expected pattern
+          if [[ "$INFRA_CHECK" != "infra" ]]; then
+            echo "❌ Repository name doesn't follow {team}-infra-{env}-{service} pattern: $REPO_NAME"
+            echo "target_dir=." >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          # Create proper structure
+          TARGET_DIR="teams/${TEAM}/${ENV}/${SERVICE}"
+          mkdir -p "$TARGET_DIR"
+          
+          echo "📁 Creating workspace structure for: $REPO_NAME"
+          echo "   Team: $TEAM"
+          echo "   Environment: $ENV" 
+          echo "   Service: $SERVICE"
+          echo "   Target: $TARGET_DIR"
+          
+          # Move all content (preserve .git directory)
+          find . -maxdepth 1 -not -name '.' -not -name '.git' -not -name 'teams' -exec mv {} "$TARGET_DIR"/ \; 2>/dev/null || true
+          
+          echo "✅ Restructured $REPO_NAME to: $TARGET_DIR"
+          echo "target_dir=$TARGET_DIR" >> $GITHUB_OUTPUT
+        
       - name: Configure Git for internal repos
         run: |
           git config --global url."https://${{ secrets.ACTION_API_TOKEN }}@github.com/".insteadOf "https://github.com/"
@@ -410,15 +534,15 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.ACTION_API_TOKEN }}
         run: terraform init
-        working-directory: ${{ inputs.WORKING_DIRECTORY }}
+        working-directory: ${{ steps.setup-workspace.outputs.target_dir }}
         
       - name: Terraform Plan
         run: terraform plan -out=tfplan
-        working-directory: ${{ inputs.WORKING_DIRECTORY }}
+        working-directory: ${{ steps.setup-workspace.outputs.target_dir }}
         
       - name: Terraform Apply
         run: terraform apply tfplan
-        working-directory: ${{ inputs.WORKING_DIRECTORY }}
+        working-directory: ${{ steps.setup-workspace.outputs.target_dir }}
 
   notify_prod_deployment:
     runs-on: ubuntu-latest
