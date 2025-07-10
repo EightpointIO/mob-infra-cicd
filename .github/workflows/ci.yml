@@ -428,6 +428,7 @@ jobs:
       - name: Terraform Apply
         run: terraform apply -auto-approve
         working-directory: ${{ steps.setup-workspace.outputs.target_dir }}
+        timeout-minutes: 30
 
   notify_dev_deployment:
     runs-on: ubuntu-latest
@@ -543,6 +544,7 @@ jobs:
       - name: Terraform Apply
         run: terraform apply -auto-approve
         working-directory: ${{ steps.setup-workspace.outputs.target_dir }}
+        timeout-minutes: 30
 
   notify_global_deployment:
     runs-on: ubuntu-latest
