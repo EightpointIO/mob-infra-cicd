@@ -1,5 +1,10 @@
 name: Infrastructure CI/CD Pipeline
 
+# Deployment Logic:
+# - GLOBAL environments: Deploy on main branch merges (shared infrastructure for all environments)
+# - DEV environments: Deploy on main branch merges (development testing)
+# - PROD environments: Deploy ONLY on release tags (manual production releases)
+
 on:
   workflow_call:
     inputs:
@@ -345,7 +350,7 @@ jobs:
 
   deploy_to_dev:
     runs-on: ubuntu-latest
-    if: ${{ needs.check_if_merge.outputs.is_merge == 'true' }}
+    if: ${{ needs.check_if_merge.outputs.is_merge == 'true' && inputs.ENVIRONMENT == 'dev' }}
     needs: [check_if_merge, quality_gate]
     permissions:
       id-token: write
@@ -426,7 +431,7 @@ jobs:
 
   notify_dev_deployment:
     runs-on: ubuntu-latest
-    if: ${{ needs.check_if_merge.outputs.is_merge == 'true' }}
+    if: ${{ needs.check_if_merge.outputs.is_merge == 'true' && inputs.ENVIRONMENT == 'dev' }}
     needs: [check_if_merge, deploy_to_dev]
     steps:
       - name: Send notification to Slack
@@ -458,9 +463,124 @@ jobs:
             echo "ℹ️ Slack webhook not configured, skipping notification"
           fi
 
+  deploy_to_global:
+    runs-on: ubuntu-latest
+    if: ${{ needs.check_if_merge.outputs.is_merge == 'true' && inputs.ENVIRONMENT == 'global' }}
+    needs: [check_if_merge, quality_gate]
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Setup workspace structure
+        id: setup-workspace
+        run: |
+          REPO_NAME="${GITHUB_REPOSITORY##*/}"
+          
+          # Handle special cases first
+          if [[ "$REPO_NAME" == "mob-infrastructure-core" ]] || [[ "$REPO_NAME" == "mob-infrastructure-cicd" ]]; then
+            echo "Infrastructure core repo - no restructuring needed"
+            echo "target_dir=." >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          # Parse repository name: {team}-infra-{env}-{service-name}
+          TEAM=$(echo "$REPO_NAME" | cut -d'-' -f1)
+          INFRA_CHECK=$(echo "$REPO_NAME" | cut -d'-' -f2)  
+          ENV=$(echo "$REPO_NAME" | cut -d'-' -f3)
+          SERVICE=$(echo "$REPO_NAME" | cut -d'-' -f4-)
+          
+          # Validate expected pattern
+          if [[ "$INFRA_CHECK" != "infra" ]]; then
+            echo "❌ Repository name doesn't follow {team}-infra-{env}-{service} pattern: $REPO_NAME"
+            echo "target_dir=." >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          # Create proper structure
+          TARGET_DIR="teams/${TEAM}/${ENV}/${SERVICE}"
+          mkdir -p "$TARGET_DIR"
+          
+          echo "📁 Creating workspace structure for: $REPO_NAME"
+          echo "   Team: $TEAM"
+          echo "   Environment: $ENV" 
+          echo "   Service: $SERVICE"
+          echo "   Target: $TARGET_DIR"
+          
+          # Move all content (preserve .git directory)
+          find . -maxdepth 1 -not -name '.' -not -name '.git' -not -name 'teams' -exec mv {} "$TARGET_DIR"/ \; 2>/dev/null || true
+          
+          echo "✅ Restructured $REPO_NAME to: $TARGET_DIR"
+          echo "target_dir=$TARGET_DIR" >> $GITHUB_OUTPUT
+        
+      - name: Configure Git for internal repos
+        run: |
+          git config --global url."https://${{ secrets.ACTION_API_TOKEN }}@github.com/".insteadOf "https://github.com/"
+          git config --global credential.helper store
+          echo "https://${{ secrets.ACTION_API_TOKEN }}@github.com" > ~/.git-credentials
+          echo "Git configuration applied"
+        
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          role-session-name: GitHubActions-${{ inputs.TEAM_NAME }}-${{ inputs.ENVIRONMENT }}-${{ inputs.OUR_PROJECT_NAME }}
+          aws-region: us-east-1
+          
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ inputs.TERRAFORM_VERSION }}
+          
+      - name: Terraform Init
+        env:
+          GITHUB_TOKEN: ${{ secrets.ACTION_API_TOKEN }}
+        run: terraform init
+        working-directory: ${{ steps.setup-workspace.outputs.target_dir }}
+        
+      - name: Terraform Apply
+        run: terraform apply -auto-approve
+        working-directory: ${{ steps.setup-workspace.outputs.target_dir }}
+
+  notify_global_deployment:
+    runs-on: ubuntu-latest
+    if: ${{ needs.check_if_merge.outputs.is_merge == 'true' && inputs.ENVIRONMENT == 'global' }}
+    needs: [check_if_merge, deploy_to_global]
+    steps:
+      - name: Send notification to Slack
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_INFRASTRUCTURE_WEBHOOK_URL }}
+        run: |
+          if [ -n "$SLACK_WEBHOOK_URL" ]; then
+            COMMIT_MESSAGE="${{ github.event.head_commit.message }}"
+            curl -X POST -H 'Content-type: application/json' --data "{
+              \"username\": \"InfraBot\",
+              \"icon_emoji\": \":construction:\",
+              \"attachments\": [
+                {
+                  \"color\": \"#36a64f\",
+                  \"title\": \"🏗️ GLOBAL ${{ inputs.OUR_PROJECT_NAME }} Infrastructure Deployed\",
+                  \"fields\": [
+                    {\"title\": \"Team\", \"value\": \"${{ inputs.TEAM_NAME }}\", \"short\": true},
+                    {\"title\": \"Environment\", \"value\": \"${{ inputs.ENVIRONMENT }}\", \"short\": true}
+                  ],
+                  \"text\": \"Commit: ${COMMIT_MESSAGE}\",
+                  \"footer\": \"Eightpoint Infrastructure Pipeline | Author: ${{ github.actor }}\",
+                  \"ts\": $(date +%s)
+                }
+              ]
+            }" $SLACK_WEBHOOK_URL
+            
+            echo "✅ Slack notification sent"
+          else
+            echo "ℹ️ Slack webhook not configured, skipping notification"
+          fi
+
   deploy_to_prod:
     runs-on: ubuntu-latest
-    if: ${{ startsWith(github.ref, 'refs/tags/') }}
+    if: ${{ startsWith(github.ref, 'refs/tags/') && inputs.ENVIRONMENT == 'prod' }}
     needs: [quality_gate]
     # environment: production  # TODO: Set up GitHub environment for production approvals
     permissions:
@@ -546,6 +666,7 @@ jobs:
 
   notify_prod_deployment:
     runs-on: ubuntu-latest
+    if: ${{ startsWith(github.ref, 'refs/tags/') && inputs.ENVIRONMENT == 'prod' }}
     needs: [deploy_to_prod]
     steps:
       - name: Send notification to Slack
