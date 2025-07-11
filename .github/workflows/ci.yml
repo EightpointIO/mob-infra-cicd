@@ -117,6 +117,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          token: ${{ github.token }}
         
       - name: Setup workspace structure
         id: setup-workspace
@@ -161,8 +163,13 @@ jobs:
         
       - name: Configure Git for internal repos
         run: |
-          git config --global url."https://x-access-token:${{ github.token }}@github.com/".insteadOf "https://github.com/"
-          echo "Git configuration applied for terraform module access"
+          if [ -n "${{ secrets.ACTION_API_TOKEN }}" ]; then
+            git config --global url."https://x-access-token:${{ secrets.ACTION_API_TOKEN }}@github.com/".insteadOf "https://github.com/"
+            echo "✅ Git configured with ACTION_API_TOKEN for private repository access"
+          else
+            git config --global url."https://x-access-token:${{ github.token }}@github.com/".insteadOf "https://github.com/"
+            echo "⚠️ Using github.token (limited scope) - ACTION_API_TOKEN not available"
+          fi
         
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -185,7 +192,7 @@ jobs:
       - name: Terraform Init
         id: init
         env:
-          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_TOKEN: ${{ secrets.ACTION_API_TOKEN || github.token }}
         run: terraform init
         working-directory: ${{ steps.setup-workspace.outputs.target_dir }}
         
@@ -400,8 +407,13 @@ jobs:
         
       - name: Configure Git for internal repos
         run: |
-          git config --global url."https://x-access-token:${{ github.token }}@github.com/".insteadOf "https://github.com/"
-          echo "Git configuration applied for terraform module access"
+          if [ -n "${{ secrets.ACTION_API_TOKEN }}" ]; then
+            git config --global url."https://x-access-token:${{ secrets.ACTION_API_TOKEN }}@github.com/".insteadOf "https://github.com/"
+            echo "✅ Git configured with ACTION_API_TOKEN for private repository access"
+          else
+            git config --global url."https://x-access-token:${{ github.token }}@github.com/".insteadOf "https://github.com/"
+            echo "⚠️ Using github.token (limited scope) - ACTION_API_TOKEN not available"
+          fi
         
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -417,7 +429,7 @@ jobs:
           
       - name: Terraform Init
         env:
-          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_TOKEN: ${{ secrets.ACTION_API_TOKEN || github.token }}
         run: terraform init
         working-directory: ${{ steps.setup-workspace.outputs.target_dir }}
         
@@ -514,8 +526,13 @@ jobs:
         
       - name: Configure Git for internal repos
         run: |
-          git config --global url."https://x-access-token:${{ github.token }}@github.com/".insteadOf "https://github.com/"
-          echo "Git configuration applied for terraform module access"
+          if [ -n "${{ secrets.ACTION_API_TOKEN }}" ]; then
+            git config --global url."https://x-access-token:${{ secrets.ACTION_API_TOKEN }}@github.com/".insteadOf "https://github.com/"
+            echo "✅ Git configured with ACTION_API_TOKEN for private repository access"
+          else
+            git config --global url."https://x-access-token:${{ github.token }}@github.com/".insteadOf "https://github.com/"
+            echo "⚠️ Using github.token (limited scope) - ACTION_API_TOKEN not available"
+          fi
         
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -531,7 +548,7 @@ jobs:
           
       - name: Terraform Init
         env:
-          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_TOKEN: ${{ secrets.ACTION_API_TOKEN || github.token }}
         run: terraform init
         working-directory: ${{ steps.setup-workspace.outputs.target_dir }}
         
@@ -629,8 +646,13 @@ jobs:
         
       - name: Configure Git for internal repos
         run: |
-          git config --global url."https://x-access-token:${{ github.token }}@github.com/".insteadOf "https://github.com/"
-          echo "Git configuration applied for terraform module access"
+          if [ -n "${{ secrets.ACTION_API_TOKEN }}" ]; then
+            git config --global url."https://x-access-token:${{ secrets.ACTION_API_TOKEN }}@github.com/".insteadOf "https://github.com/"
+            echo "✅ Git configured with ACTION_API_TOKEN for private repository access"
+          else
+            git config --global url."https://x-access-token:${{ github.token }}@github.com/".insteadOf "https://github.com/"
+            echo "⚠️ Using github.token (limited scope) - ACTION_API_TOKEN not available"
+          fi
         
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -646,7 +668,7 @@ jobs:
           
       - name: Terraform Init
         env:
-          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_TOKEN: ${{ secrets.ACTION_API_TOKEN || github.token }}
         run: terraform init
         working-directory: ${{ steps.setup-workspace.outputs.target_dir }}
         
