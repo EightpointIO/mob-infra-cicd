@@ -114,7 +114,6 @@ jobs:
       pull-requests: write
       security-events: write
       actions: read
-      repository-projects: read
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
