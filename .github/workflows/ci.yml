@@ -161,10 +161,8 @@ jobs:
         
       - name: Configure Git for internal repos
         run: |
-          git config --global url."https://${{ github.token }}@github.com/".insteadOf "https://github.com/"
-          git config --global credential.helper store
-          echo "https://${{ github.token }}@github.com" > ~/.git-credentials
-          echo "Git configuration applied"
+          git config --global url."https://x-access-token:${{ github.token }}@github.com/".insteadOf "https://github.com/"
+          echo "Git configuration applied for terraform module access"
         
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -402,10 +400,8 @@ jobs:
         
       - name: Configure Git for internal repos
         run: |
-          git config --global url."https://${{ github.token }}@github.com/".insteadOf "https://github.com/"
-          git config --global credential.helper store
-          echo "https://${{ github.token }}@github.com" > ~/.git-credentials
-          echo "Git configuration applied"
+          git config --global url."https://x-access-token:${{ github.token }}@github.com/".insteadOf "https://github.com/"
+          echo "Git configuration applied for terraform module access"
         
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -518,10 +514,8 @@ jobs:
         
       - name: Configure Git for internal repos
         run: |
-          git config --global url."https://${{ github.token }}@github.com/".insteadOf "https://github.com/"
-          git config --global credential.helper store
-          echo "https://${{ github.token }}@github.com" > ~/.git-credentials
-          echo "Git configuration applied"
+          git config --global url."https://x-access-token:${{ github.token }}@github.com/".insteadOf "https://github.com/"
+          echo "Git configuration applied for terraform module access"
         
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -635,10 +629,8 @@ jobs:
         
       - name: Configure Git for internal repos
         run: |
-          git config --global url."https://${{ github.token }}@github.com/".insteadOf "https://github.com/"
-          git config --global credential.helper store
-          echo "https://${{ github.token }}@github.com" > ~/.git-credentials
-          echo "Git configuration applied"
+          git config --global url."https://x-access-token:${{ github.token }}@github.com/".insteadOf "https://github.com/"
+          echo "Git configuration applied for terraform module access"
         
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
