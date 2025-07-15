@@ -1,0 +1,17 @@
+[0;32m[INFO][0m  Loading configuration from: /Users/liviu/Desktop/infrastructure-test/scripts/dependency-updater.config
+[0;32m[INFO][0m  Starting Terraform Dependency Updater
+[0;32m[INFO][0m  Command: check
+[0;32m[INFO][0m  Strategy: minor
+[0;32m[INFO][0m  Target: /Users/liviu/Desktop/infrastructure-test
+[0;32m[INFO][0m  Dry run: false
+[0;32m[INFO][0m  Checking prerequisites...
+[0;32m[INFO][0m  Terraform version: 1.5.7
+[1;33m[WARN][0m  Uncommitted changes detected. Consider committing before updating dependencies.
+[0;32m[INFO][0m  Prerequisites check completed
+[0;32m[INFO][0m  Checking for dependency updates in: /Users/liviu/Desktop/infrastructure-test
+[0;34m[DEBUG][0m Finding Terraform files in: /Users/liviu/Desktop/infrastructure-test
+[0;34m[DEBUG][0m Processing file: [0;34m[DEBUG][0m Finding Terraform files in: /Users/liviu/Desktop/infrastructure-test
+[0;34m[DEBUG][0m Extracting module versions from: [0;34m[DEBUG][0m Finding Terraform files in: /Users/liviu/Desktop/infrastructure-test
+[0;34m[DEBUG][0m Extracting provider versions from: [0;34m[DEBUG][0m Finding Terraform files in: /Users/liviu/Desktop/infrastructure-test
+[0;34m[DEBUG][0m Getting latest version for provider: 
+[1;33m[WARN][0m  No version found for provider 

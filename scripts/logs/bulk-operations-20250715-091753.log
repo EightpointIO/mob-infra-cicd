@@ -1,0 +1,12 @@
+[2025-07-15 09:17:53] [INFO] Bulk operations started with args: maintenance --parallel 4 --dry-run
+[2025-07-15 09:17:53] [INFO] HEADER: Bulk Infrastructure Operations
+[2025-07-15 09:17:53] [INFO] Operation: maintenance
+[2025-07-15 09:17:53] [INFO] Parallel jobs: 4
+[2025-07-15 09:17:53] [INFO] Project root: /Users/liviu/Desktop/infrastructure-test
+[2025-07-15 09:17:53] [INFO] Log file: /Users/liviu/Desktop/infrastructure-test/scripts/logs/bulk-operations-20250715-091753.log
+[2025-07-15 09:17:53] [WARNING] DRY RUN MODE - No changes will be made
+[2025-07-15 09:17:53] [INFO] Would run maintenance tasks (format, validate, security scan)
+[2025-07-15 09:17:53] [INFO] HEADER: BULK OPERATIONS SUMMARY
+[2025-07-15 09:17:53] [INFO] Bulk operations completed
+[2025-07-15 09:17:53] [SUCCESS] Bulk operations completed successfully!
+[2025-07-15 09:17:53] [INFO] Cleanup completed
