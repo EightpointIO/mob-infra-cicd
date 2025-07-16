@@ -1,9 +1,0 @@
-[0;32m[INFO][0m  Loading configuration from: /Users/liviu/Desktop/infrastructure-test/scripts/dependency-updater.config
-[0;32m[INFO][0m  Starting Terraform Dependency Updater
-[0;32m[INFO][0m  Command: check
-[0;32m[INFO][0m  Strategy: minor
-[0;32m[INFO][0m  Target: teams/ios/dev/network
-[0;32m[INFO][0m  Dry run: false
-[0;32m[INFO][0m  Checking prerequisites...
-[0;32m[INFO][0m  Terraform version: 1.5.7
-[0;31m[ERROR][0m Not in a Git repository

@@ -14,12 +14,12 @@ shared/mob-infrastructure-cicd/scripts/
 ./shared/mob-infrastructure-cicd/scripts/infrastructure-manager.sh
 ```
 
-### 2. **Dynamic Repository Setup (New & Improved!)**
+### 2. **Dynamic Repository Setup (Recommended!)**
 ```bash
 # Set your GitHub token
 export GITHUB_TOKEN='your_github_token'
 
-# Dynamic setup - discovers all repos automatically
+# Dynamic setup - discovers all repos automatically using GitHub API
 ./shared/mob-infrastructure-cicd/scripts/setup-workspace-dynamic.sh
 ```
 

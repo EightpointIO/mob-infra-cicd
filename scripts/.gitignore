@@ -1,0 +1,19 @@
+# Runtime directories - keep structure but not contents
+logs/*
+!logs/.gitkeep
+temp/*
+!temp/.gitkeep
+reports/*
+!reports/.gitkeep
+backups/*
+!backups/.gitkeep
+
+# Runtime files
+*.log
+*.tmp
+*.pid
+*.lock
+
+# OS files
+.DS_Store
+Thumbs.db
