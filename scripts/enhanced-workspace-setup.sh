@@ -593,19 +593,13 @@ else
     fi
 fi
 
-# Copy the main VS Code workspace file to root (keep the descriptive name)
-workspace_root_file="$WORKSPACE_DIR/infrastructure-workspace.code-workspace"
-if [[ "$workspace_file" != "$workspace_root_file" ]]; then
-    cp "$workspace_file" "$workspace_root_file"
-    echo -e "${GREEN}✓ VS Code workspace copied to root:${NC} infrastructure-workspace.code-workspace"
-fi
+# Workspace setup completed - no workspace file needed
 
 # Display final recommendations
 echo
 echo -e "${CYAN}${BOLD}🚀 Next Steps:${NC}"
-echo -e "  ${WHITE}1.${NC} Open VS Code workspace:"
-echo -e "     ${CYAN}code '$workspace_root_file'${NC} ${DIM}(convenient root location)${NC}"
-echo -e "     ${CYAN}code '$workspace_file'${NC} ${DIM}(original location)${NC}"
+echo -e "  ${WHITE}1.${NC} Open in VS Code:"
+echo -e "     ${CYAN}cd $WORKSPACE_DIR && code .${NC}"
 echo -e "  ${WHITE}2.${NC} Review repository structure in VS Code"
 echo -e "  ${WHITE}3.${NC} Install recommended extensions when prompted"
 echo -e "  ${WHITE}4.${NC} Check ${CYAN}README.md${NC} in workspace root for documentation"
@@ -615,7 +609,6 @@ fi
 
 echo -e "\n${CYAN}📁 Workspace Files:${NC}"
 echo -e "  ${WHITE}•${NC} ${CYAN}README.md${NC} - Project documentation"
-echo -e "  ${WHITE}•${NC} ${CYAN}infrastructure-workspace.code-workspace${NC} - VS Code workspace"
 
 echo -e "\n${DIM}💡 Tip: Re-run this script anytime to discover new infrastructure repositories!${NC}"
 
