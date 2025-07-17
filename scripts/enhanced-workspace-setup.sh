@@ -558,12 +558,35 @@ fi
 
 echo -e "\n${CYAN}Workspace directory:${NC} $WORKSPACE_DIR"
 
-# Copy VS Code workspace from stored template
+# Copy VS Code workspace from stored template  
 workspace_file="$WORKSPACE_DIR/infrastructure-workspace.code-workspace"
-workspace_template="$WORKSPACE_DIR/shared/mob-infra-cicd/workspace/infrastructure-workspace.code-workspace"
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+workspace_template="$script_dir/../workspace/infrastructure-workspace.code-workspace"
 echo -e "${CYAN}📝 Copying VS Code workspace from template...${NC}"
 
-if [[ -f "$workspace_template" ]]; then
+# Skip if workspace file already exists (to preserve existing customizations)
+if [[ -f "$workspace_file" ]]; then
+    echo -e "${YELLOW}⚠️  Workspace file already exists, skipping copy to preserve customizations${NC}"
+elif [[ -L "$workspace_template" ]]; then
+    # Template is a symlink, resolve and copy the target
+    workspace_target=$(readlink "$workspace_template")
+    if [[ -f "$(dirname "$workspace_template")/$workspace_target" ]]; then
+        cp "$(dirname "$workspace_template")/$workspace_target" "$workspace_file"
+    else
+        echo -e "${YELLOW}⚠️  Creating default workspace (symlink target not found)${NC}"
+        # Create a basic workspace file
+        cat > "$workspace_file" << 'EOF'
+{
+    "folders": [
+        {
+            "name": "🏢 infrastructure", 
+            "path": "./"
+        }
+    ]
+}
+EOF
+    fi
+elif [[ -f "$workspace_template" ]]; then
     cp "$workspace_template" "$workspace_file"
 else
     echo -e "${RED}❌ Workspace template not found: $workspace_template${NC}"
