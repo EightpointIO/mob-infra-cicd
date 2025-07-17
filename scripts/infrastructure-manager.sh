@@ -137,6 +137,7 @@ print_success() {
     local log_text="$text"
     log_text="${log_text//ghp_[a-zA-Z0-9]*/[GITHUB_TOKEN_REDACTED]}"
     log_text="${log_text//ghs_[a-zA-Z0-9]*/[GITHUB_TOKEN_REDACTED]}"
+    log_text="${log_text//github_pat_[a-zA-Z0-9_]*/[GITHUB_TOKEN_REDACTED]}"
     
     echo -e "${GREEN}${CHECK_MARK}${NC} $text"
     echo "SUCCESS: $log_text" >> "$SESSION_LOG"
@@ -148,6 +149,7 @@ print_error() {
     local log_text="$text"
     log_text="${log_text//ghp_[a-zA-Z0-9]*/[GITHUB_TOKEN_REDACTED]}"
     log_text="${log_text//ghs_[a-zA-Z0-9]*/[GITHUB_TOKEN_REDACTED]}"
+    log_text="${log_text//github_pat_[a-zA-Z0-9_]*/[GITHUB_TOKEN_REDACTED]}"
     
     echo -e "${RED}${CROSS_MARK}${NC} $text" >&2
     echo "ERROR: $log_text" >> "$SESSION_LOG"
@@ -159,6 +161,7 @@ print_warning() {
     local log_text="$text"
     log_text="${log_text//ghp_[a-zA-Z0-9]*/[GITHUB_TOKEN_REDACTED]}"
     log_text="${log_text//ghs_[a-zA-Z0-9]*/[GITHUB_TOKEN_REDACTED]}"
+    log_text="${log_text//github_pat_[a-zA-Z0-9_]*/[GITHUB_TOKEN_REDACTED]}"
     
     echo -e "${YELLOW}${WARNING_SIGN}${NC} $text"
     echo "WARNING: $log_text" >> "$SESSION_LOG"
@@ -170,6 +173,7 @@ print_info() {
     local log_text="$text"
     log_text="${log_text//ghp_[a-zA-Z0-9]*/[GITHUB_TOKEN_REDACTED]}"
     log_text="${log_text//ghs_[a-zA-Z0-9]*/[GITHUB_TOKEN_REDACTED]}"
+    log_text="${log_text//github_pat_[a-zA-Z0-9_]*/[GITHUB_TOKEN_REDACTED]}"
     
     echo -e "${BLUE}${INFO_SIGN}${NC} $text"
     echo "INFO: $log_text" >> "$SESSION_LOG"
@@ -207,6 +211,7 @@ track_operation() {
     local log_operation="$operation"
     log_operation="${log_operation//ghp_[a-zA-Z0-9]*/[GITHUB_TOKEN_REDACTED]}"
     log_operation="${log_operation//ghs_[a-zA-Z0-9]*/[GITHUB_TOKEN_REDACTED]}"
+    log_operation="${log_operation//github_pat_[a-zA-Z0-9_]*/[GITHUB_TOKEN_REDACTED]}"
     
     EXECUTED_OPERATIONS+=("$operation")
     OPERATION_STATUS["$operation"]="$op_status"
@@ -363,9 +368,9 @@ operation_workspace_setup() {
         print_warning "GITHUB_TOKEN environment variable not set"
         print_info "Repository discovery requires GitHub authentication"
         echo -e "\n${BLUE}${INFO_SIGN}${NC} ${DIM}To create a GitHub token:${NC}"
-        echo -e "${DIM}  1. Go to https://github.com/settings/tokens${NC}"
-        echo -e "${DIM}  2. Generate new token (classic)${NC}"
-        echo -e "${DIM}  3. Select 'repo' scope for repository access${NC}"
+        echo -e "${DIM}  Classic tokens: https://github.com/settings/tokens${NC}"
+        echo -e "${DIM}  Fine-grained tokens: https://github.com/settings/personal-access-tokens/new${NC}"
+        echo -e "${DIM}  Required scope: 'repo' access for repository operations${NC}"
         echo -e "\n${YELLOW}Please enter your GitHub Personal Access Token:${NC}"
         echo -e "${DIM}(Token will be hidden as you type and not logged)${NC}"
         
@@ -382,9 +387,9 @@ operation_workspace_setup() {
         fi
         
         # Validate token format (basic check)
-        if [[ ! "$github_token" =~ ^(gh[ps]_[a-zA-Z0-9]{36}|[a-fA-F0-9]{40})$ ]]; then
+        if [[ ! "$github_token" =~ ^(gh[ps]_[a-zA-Z0-9]{36}|github_pat_[a-zA-Z0-9_]{82}|[a-fA-F0-9]{40})$ ]]; then
             print_warning "Token format doesn't match expected GitHub token patterns"
-            echo -e "${DIM}Expected formats: ghp_... (personal) or ghs_... (server) or 40-char hex${NC}"
+            echo -e "${DIM}Expected formats: ghp_... (personal), ghs_... (server), github_pat_... (fine-grained), or 40-char hex${NC}"
             echo -e "${YELLOW}Continue anyway? (y/N):${NC} "
             read -r confirm
             if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
