@@ -56,6 +56,7 @@ readonly HEALTH_REPORTER_SCRIPT="${SCRIPT_DIR}/health-reporter.sh"
 readonly COMPLIANCE_SCRIPT="${SCRIPT_DIR}/compliance-checker.sh"
 readonly DEPENDENCY_SCRIPT="${SCRIPT_DIR}/dependency-updater.sh"
 readonly BULK_OPERATIONS_SCRIPT="${SCRIPT_DIR}/bulk-operations.sh"
+readonly WORKSPACE_SETUP_SCRIPT="${SCRIPT_DIR}/setup-workspace-dynamic.sh"
 
 # Global state tracking (using zsh associative arrays)
 typeset -a EXECUTED_OPERATIONS
@@ -100,6 +101,7 @@ verify_dependencies() {
     [[ ! -f "$COMPLIANCE_SCRIPT" ]] && missing_deps+=("compliance-checker.sh")
     [[ ! -f "$DEPENDENCY_SCRIPT" ]] && missing_deps+=("dependency-updater.sh")
     [[ ! -f "$BULK_OPERATIONS_SCRIPT" ]] && missing_deps+=("bulk-operations.sh")
+    [[ ! -f "$WORKSPACE_SETUP_SCRIPT" ]] && missing_deps+=("setup-workspace-dynamic.sh")
     
     # Check for required system utilities
     command -v git >/dev/null 2>&1 || missing_deps+=("git")
@@ -247,27 +249,28 @@ show_main_menu() {
     echo -e "${DIM}Session: $TIMESTAMP${NC}\n"
     
     echo -e "${BOLD}Main Operations:${NC}"
-    echo -e "  ${GREEN}1.${NC} ${WRENCH} Quick Health Check"
-    echo -e "  ${GREEN}2.${NC} ${CHART} Comprehensive Health Report"
-    echo -e "  ${GREEN}3.${NC} ${SHIELD} Security & Compliance Check"
-    echo -e "  ${GREEN}4.${NC} ${PACKAGE} Update Dependencies"
-    echo -e "  ${GREEN}5.${NC} ${LIGHTNING} Bulk Operations"
-    echo -e "  ${GREEN}6.${NC} ${CLIPBOARD} Maintenance Check"
+    echo -e "  ${GREEN}1.${NC} 📁 Workspace Setup"
+    echo -e "  ${GREEN}2.${NC} ${WRENCH} Quick Health Check"
+    echo -e "  ${GREEN}3.${NC} ${CHART} Comprehensive Health Report"
+    echo -e "  ${GREEN}4.${NC} ${SHIELD} Security & Compliance Check"
+    echo -e "  ${GREEN}5.${NC} ${PACKAGE} Update Dependencies"
+    echo -e "  ${GREEN}6.${NC} ${LIGHTNING} Bulk Operations"
+    echo -e "  ${GREEN}7.${NC} ${CLIPBOARD} Maintenance Check"
     
     echo -e "\n${BOLD}Workflow Automation:${NC}"
-    echo -e "  ${PURPLE}7.${NC} ${ROCKET} Complete Setup Workflow"
-    echo -e "  ${PURPLE}8.${NC} ${GEAR} Daily Maintenance Workflow"
-    echo -e "  ${PURPLE}9.${NC} ${CHART} Weekly Report Workflow"
+    echo -e "  ${PURPLE}8.${NC} ${ROCKET} Complete Setup Workflow"
+    echo -e "  ${PURPLE}9.${NC} ${GEAR} Daily Maintenance Workflow"
+    echo -e "  ${PURPLE}10.${NC} ${CHART} Weekly Report Workflow"
     
     echo -e "\n${BOLD}Utilities:${NC}"
-    echo -e "  ${BLUE}10.${NC} 📁 View Recent Reports"
-    echo -e "  ${BLUE}11.${NC} 📈 Session Summary"
-    echo -e "  ${BLUE}12.${NC} 🔧 System Status"
-    echo -e "  ${BLUE}13.${NC} ❓ Help & Examples"
+    echo -e "  ${BLUE}11.${NC} 📁 View Recent Reports"
+    echo -e "  ${BLUE}12.${NC} 📈 Session Summary"
+    echo -e "  ${BLUE}13.${NC} 🔧 System Status"
+    echo -e "  ${BLUE}14.${NC} ❓ Help & Examples"
     
     echo -e "\n  ${RED}0.${NC} Exit"
     
-    echo -e "\n${DIM}Choose an option (0-13):${NC} "
+    echo -e "\n${DIM}Choose an option (0-14):${NC} "
 }
 
 # Individual operation functions
@@ -325,6 +328,24 @@ operation_maintenance_check() {
     execute_script "$MAINTENANCE_SCRIPT" "Maintenance Check"
 }
 
+operation_workspace_setup() {
+    print_header "📁 Workspace Setup"
+    print_info "Setting up infrastructure workspace with dynamic repository discovery..."
+    
+    # Check for GitHub token
+    if [[ -z "${GITHUB_TOKEN:-}" ]]; then
+        print_warning "GITHUB_TOKEN environment variable not set"
+        print_info "Repository discovery requires GitHub authentication"
+        echo -e "\n${DIM}Please set your GitHub token:${NC}"
+        echo -e "  ${CYAN}export GITHUB_TOKEN='your_github_token'${NC}"
+        echo -e "\n${DIM}Or run workspace setup directly:${NC}"
+        echo -e "  ${CYAN}$WORKSPACE_SETUP_SCRIPT${NC}"
+        return 1
+    fi
+    
+    execute_script "$WORKSPACE_SETUP_SCRIPT" "Workspace Setup"
+}
+
 # Workflow automation functions
 workflow_complete_setup() {
     print_header "🚀 Complete Setup Workflow"
@@ -332,6 +353,7 @@ workflow_complete_setup() {
     
     local steps=(
         "System Prerequisites Check"
+        "Workspace Setup"
         "Health Check"
         "Security & Compliance"
         "Dependency Updates"
@@ -348,6 +370,9 @@ workflow_complete_setup() {
             "System Prerequisites Check")
                 verify_dependencies
                 print_success "Prerequisites verified"
+                ;;
+            "Workspace Setup")
+                operation_workspace_setup
                 ;;
             "Health Check")
                 operation_quick_health
@@ -508,6 +533,7 @@ system_status() {
     
     echo -e "\n${BOLD}Available Scripts:${NC}"
     local scripts=(
+        "$WORKSPACE_SETUP_SCRIPT:Workspace Setup"
         "$MAINTENANCE_SCRIPT:Maintenance Check"
         "$HEALTH_REPORTER_SCRIPT:Health Reporter"
         "$COMPLIANCE_SCRIPT:Compliance Checker"
@@ -569,6 +595,7 @@ show_help() {
     echo -e "  ${CYAN}./scripts/infrastructure-manager.sh${NC}                    # Launch interactive menu"
     
     echo -e "\n${BOLD}CLI AUTOMATION:${NC}"
+    echo -e "  ${CYAN}./scripts/infrastructure-manager.sh${NC} --workspace       # Setup infrastructure workspace"
     echo -e "  ${CYAN}./scripts/infrastructure-manager.sh${NC} --health          # Quick health check"
     echo -e "  ${CYAN}./scripts/infrastructure-manager.sh${NC} --report          # Comprehensive health report"
     echo -e "  ${CYAN}./scripts/infrastructure-manager.sh${NC} --compliance      # Security & compliance check"
@@ -735,6 +762,9 @@ EOF
 # CLI argument handling
 handle_cli_args() {
     case "${1:-}" in
+        --workspace)
+            operation_workspace_setup
+            ;;
         --health|--quick)
             operation_quick_health
             ;;
@@ -798,26 +828,27 @@ interactive_mode() {
         read -r choice
         
         case $choice in
-            1) operation_quick_health ;;
-            2) operation_comprehensive_health ;;
-            3) operation_security_compliance ;;
-            4) operation_update_dependencies ;;
-            5) operation_bulk_operations ;;
-            6) operation_maintenance_check ;;
-            7) workflow_complete_setup ;;
-            8) workflow_daily_maintenance ;;
-            9) workflow_weekly_report ;;
-            10) view_recent_reports ;;
-            11) session_summary ;;
-            12) system_status ;;
-            13) show_help ;;
+            1) operation_workspace_setup ;;
+            2) operation_quick_health ;;
+            3) operation_comprehensive_health ;;
+            4) operation_security_compliance ;;
+            5) operation_update_dependencies ;;
+            6) operation_bulk_operations ;;
+            7) operation_maintenance_check ;;
+            8) workflow_complete_setup ;;
+            9) workflow_daily_maintenance ;;
+            10) workflow_weekly_report ;;
+            11) view_recent_reports ;;
+            12) session_summary ;;
+            13) system_status ;;
+            14) show_help ;;
             0)
                 print_info "Thank you for using Infrastructure Manager!"
                 session_summary
                 break
                 ;;
             *)
-                print_error "Invalid choice. Please select 0-13."
+                print_error "Invalid choice. Please select 0-14."
                 sleep 1
                 ;;
         esac
