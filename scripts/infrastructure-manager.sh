@@ -397,8 +397,8 @@ operation_workspace_setup() {
         print_success "Using existing GITHUB_TOKEN from environment"
     fi
     
-    # Run in non-interactive mode since we've handled auth here
-    export NON_INTERACTIVE=true
+    # Allow interactive workspace selection but skip auth prompts
+    export SKIP_AUTH_PROMPT=true
     execute_script "$WORKSPACE_SETUP_SCRIPT" "Enhanced Workspace Setup"
 }
 

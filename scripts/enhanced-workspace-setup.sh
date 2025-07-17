@@ -21,6 +21,7 @@ readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly DEFAULT_WORKSPACE="/Users/$(whoami)/Developer/infrastructure"
 readonly GITHUB_ORG="${1:-EightpointIO}"
 readonly NON_INTERACTIVE="${NON_INTERACTIVE:-false}"
+readonly SKIP_AUTH_PROMPT="${SKIP_AUTH_PROMPT:-false}"
 
 # Progress tracking
 declare -a DISCOVERED_REPOS=()
@@ -97,11 +98,12 @@ select_workspace() {
     echo
 }
 
-# Enhanced progress indicator with percentage
+# Enhanced progress indicator with percentage - updates in place
 show_progress() {
     local current=$1
     local total=$2
     local operation="$3"
+    local status="${4:-}"
     local percentage=$((current * 100 / total))
     local filled=$((percentage / 5))
     local empty=$((20 - filled))
@@ -110,7 +112,15 @@ show_progress() {
     for ((i=0; i<filled; i++)); do bar+="█"; done
     for ((i=0; i<empty; i++)); do bar+="░"; done
     
-    printf "\r${CYAN}[$current/$total] ${WHITE}$operation${NC} |$bar| ${BOLD}${percentage}%%${NC}"
+    # Clear the line and show progress
+    printf "\r\033[K${CYAN}[$current/$total] ${WHITE}$operation${NC} |$bar| ${BOLD}${percentage}%%${NC}"
+    
+    # Add status if provided
+    if [[ -n "$status" ]]; then
+        printf " ${status}"
+    fi
+    
+    # Only add newline at the end
     if [[ $current -eq $total ]]; then
         echo
     fi
@@ -140,6 +150,13 @@ setup_github_auth() {
         local token_type=$(validate_github_token "$GITHUB_TOKEN")
         echo -e "${GREEN}✓ Using existing GITHUB_TOKEN${NC} ${DIM}($token_type)${NC}"
         return 0
+    fi
+    
+    # Skip auth prompt if handled by orchestrator
+    if [[ "$SKIP_AUTH_PROMPT" = "true" ]]; then
+        echo -e "${RED}✗ GITHUB_TOKEN environment variable required${NC}"
+        echo -e "${CYAN}ℹ Please set GITHUB_TOKEN and retry${NC}"
+        return 1
     fi
     
     # Non-interactive mode: require GITHUB_TOKEN to be set
@@ -301,71 +318,76 @@ echo -e "${GREEN}✓ Found $total infrastructure repositories:${NC}"
 echo "$all_repos" | sed 's/^/  • /'
 echo
 
-# Process each repository with enhanced progress tracking
+# Process each repository with clean progress tracking
 current=0
 for repo in "${repos[@]}"; do
     ((current++))
-    show_progress $current $total "Processing $repo"
     
-    # Enhanced target directory logic with team-based organization
+    # Enhanced target directory logic with proper nested structure
     target_dir=""
+    organization_info=""
     if [[ "$repo" =~ ^mob-infra- ]]; then
         # New pattern: mob-infra-cicd, mob-infra-core
         target_dir="$WORKSPACE_DIR/shared/$repo"
+        organization_info="shared/$repo"
     elif [[ "$repo" =~ ^mob-infrastructure- ]]; then
         # Legacy pattern: mob-infrastructure-cicd, mob-infrastructure-core
         target_dir="$WORKSPACE_DIR/shared/$repo"
-    elif [[ "$repo" =~ ^ios-infra- ]]; then
-        # iOS team infrastructure: ios-infra-prod-eks, ios-infra-dev-s3
-        mkdir -p "$WORKSPACE_DIR/teams/ios"
-        target_dir="$WORKSPACE_DIR/teams/ios/$repo"
-    elif [[ "$repo" =~ ^android-infra- ]]; then
-        # Android team infrastructure: android-infra-prod-rds, android-infra-staging-vpc
-        mkdir -p "$WORKSPACE_DIR/teams/android"
-        target_dir="$WORKSPACE_DIR/teams/android/$repo"
-    elif [[ "$repo" =~ ^platform-infra- ]]; then
-        # Platform team infrastructure: platform-infra-shared-monitoring
-        mkdir -p "$WORKSPACE_DIR/teams/platform"
-        target_dir="$WORKSPACE_DIR/teams/platform/$repo"
-    elif [[ "$repo" =~ ^([a-z]+)-infra- ]]; then
-        # Generic team pattern: teamname-infra-environment-resource
+        organization_info="shared/$repo"
+    elif [[ "$repo" =~ ^([a-z]+)-infra-(global|dev|prod|staging)-(.+)$ ]]; then
+        # Pattern: team-infra-environment-resource -> teams/team/environment/resource
         team_name="${BASH_REMATCH[1]}"
+        environment="${BASH_REMATCH[2]}"
+        resource="${BASH_REMATCH[3]}"
+        mkdir -p "$WORKSPACE_DIR/teams/$team_name/$environment"
+        target_dir="$WORKSPACE_DIR/teams/$team_name/$environment/$resource"
+        organization_info="teams/$team_name/$environment/$resource"
+    elif [[ "$repo" =~ ^([a-z]+)-infra-(.+)$ ]]; then
+        # Fallback pattern: team-infra-resource -> teams/team/resource (for edge cases)
+        team_name="${BASH_REMATCH[1]}"
+        remaining="${BASH_REMATCH[2]}"
         mkdir -p "$WORKSPACE_DIR/teams/$team_name"
-        target_dir="$WORKSPACE_DIR/teams/$team_name/$repo"
+        target_dir="$WORKSPACE_DIR/teams/$team_name/$remaining"
+        organization_info="teams/$team_name/$remaining"
     else
         # Default to shared for unknown patterns
         target_dir="$WORKSPACE_DIR/shared/$repo"
+        organization_info="shared/$repo"
     fi
     
     repo_url="git@github.com:${GITHUB_ORG}/${repo}.git"
     
+    # Show progress with current operation
     if [[ -d "$target_dir" ]]; then
-        echo -e "\n  ${YELLOW}⟳ Updating existing repository${NC}"
+        show_progress $current $total "$repo" "${YELLOW}⟳ Updating...${NC}"
         (
             cd "$target_dir"
             if git fetch --all --prune >/dev/null 2>&1; then
                 if git reset --hard origin/main >/dev/null 2>&1 || git reset --hard origin/master >/dev/null 2>&1; then
                     UPDATED_REPOS+=("$repo")
-                    echo -e "  ${GREEN}✓ Updated successfully${NC}"
+                    show_progress $current $total "$repo" "${GREEN}✓ Updated → $organization_info${NC}"
                 else
                     FAILED_REPOS+=("$repo")
-                    echo -e "  ${RED}✗ Failed to reset${NC}"
+                    show_progress $current $total "$repo" "${RED}✗ Failed to reset${NC}"
                 fi
             else
                 FAILED_REPOS+=("$repo")
-                echo -e "  ${RED}✗ Failed to fetch${NC}"
+                show_progress $current $total "$repo" "${RED}✗ Failed to fetch${NC}"
             fi
         )
     else
-        echo -e "\n  ${CYAN}⬇ Cloning repository${NC}"
+        show_progress $current $total "$repo" "${CYAN}⬇ Cloning...${NC}"
         if git clone "$repo_url" "$target_dir" >/dev/null 2>&1; then
             CLONED_REPOS+=("$repo")
-            echo -e "  ${GREEN}✓ Cloned successfully${NC}"
+            show_progress $current $total "$repo" "${GREEN}✓ Cloned → $organization_info${NC}"
         else
             FAILED_REPOS+=("$repo")
-            echo -e "  ${RED}✗ Failed to clone${NC}"
+            show_progress $current $total "$repo" "${RED}✗ Failed to clone${NC}"
         fi
     fi
+    
+    # Brief pause to let user see the result before next item
+    sleep 0.3
 done
 
 echo
@@ -461,14 +483,60 @@ EOF
 echo -e "${GREEN}✓ Enhanced VS Code workspace generated:${NC} $(basename "$workspace_file")"
 echo -e "${CYAN}Open with:${NC} code '$workspace_file'"
 
+# Copy important files to workspace root for easy access
+echo -e "${CYAN}📋 Copying important files to workspace root...${NC}"
+
+# Copy README.md from the infrastructure root if it exists
+readme_source="$WORKSPACE_DIR/README.md"
+if [[ -f "$readme_source" ]]; then
+    echo -e "${GREEN}✓ README.md already exists in workspace root${NC}"
+else
+    # Look for README.md in common locations
+    possible_readmes=(
+        "$WORKSPACE_DIR/shared/mob-infra-cicd/README.md"
+        "$WORKSPACE_DIR/shared/mob-infrastructure-cicd/README.md"
+        "/Users/$(whoami)/Developer/infrastructure/README.md"
+    )
+    
+    readme_copied=false
+    for readme_path in "${possible_readmes[@]}"; do
+        if [[ -f "$readme_path" ]]; then
+            cp "$readme_path" "$WORKSPACE_DIR/README.md"
+            echo -e "${GREEN}✓ README.md copied to workspace root${NC}"
+            echo -e "  ${DIM}Source: $readme_path${NC}"
+            readme_copied=true
+            break
+        fi
+    done
+    
+    if [[ "$readme_copied" = false ]]; then
+        echo -e "${YELLOW}⚠ README.md not found in expected locations${NC}"
+        echo -e "${DIM}  Expected locations: ${possible_readmes[*]}${NC}"
+    fi
+fi
+
+# Copy the main VS Code workspace file to root (keep the descriptive name)
+workspace_root_file="$WORKSPACE_DIR/infrastructure-workspace.code-workspace"
+if [[ "$workspace_file" != "$workspace_root_file" ]]; then
+    cp "$workspace_file" "$workspace_root_file"
+    echo -e "${GREEN}✓ VS Code workspace copied to root:${NC} infrastructure-workspace.code-workspace"
+fi
+
 # Display final recommendations
 echo
 echo -e "${CYAN}${BOLD}🚀 Next Steps:${NC}"
-echo -e "  ${WHITE}1.${NC} Open VS Code workspace: ${CYAN}code '$workspace_file'${NC}"
+echo -e "  ${WHITE}1.${NC} Open VS Code workspace:"
+echo -e "     ${CYAN}code '$workspace_root_file'${NC} ${DIM}(convenient root location)${NC}"
+echo -e "     ${CYAN}code '$workspace_file'${NC} ${DIM}(original location)${NC}"
 echo -e "  ${WHITE}2.${NC} Review repository structure in VS Code"
 echo -e "  ${WHITE}3.${NC} Install recommended extensions when prompted"
+echo -e "  ${WHITE}4.${NC} Check ${CYAN}README.md${NC} in workspace root for documentation"
 if [[ ${#FAILED_REPOS[@]} -gt 0 ]]; then
-    echo -e "  ${WHITE}4.${NC} ${RED}Investigate failed repositories and check SSH keys/permissions${NC}"
+    echo -e "  ${WHITE}5.${NC} ${RED}Investigate failed repositories and check SSH keys/permissions${NC}"
 fi
+
+echo -e "\n${CYAN}📁 Workspace Files:${NC}"
+echo -e "  ${WHITE}•${NC} ${CYAN}README.md${NC} - Project documentation"
+echo -e "  ${WHITE}•${NC} ${CYAN}infrastructure-workspace.code-workspace${NC} - VS Code workspace"
 
 echo -e "\n${DIM}💡 Tip: Re-run this script anytime to discover new infrastructure repositories!${NC}"
