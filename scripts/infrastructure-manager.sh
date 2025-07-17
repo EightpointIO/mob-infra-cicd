@@ -57,7 +57,7 @@ readonly HEALTH_REPORTER_SCRIPT="${SCRIPT_DIR}/health-reporter.sh"
 readonly COMPLIANCE_SCRIPT="${SCRIPT_DIR}/compliance-checker.sh"
 readonly DEPENDENCY_SCRIPT="${SCRIPT_DIR}/dependency-updater.sh"
 readonly BULK_OPERATIONS_SCRIPT="${SCRIPT_DIR}/bulk-operations.sh"
-readonly WORKSPACE_SETUP_SCRIPT="${SCRIPT_DIR}/setup-workspace-dynamic.sh"
+readonly WORKSPACE_SETUP_SCRIPT="${SCRIPT_DIR}/enhanced-workspace-setup.sh"
 
 # Global state tracking (using zsh associative arrays)
 typeset -a EXECUTED_OPERATIONS
@@ -102,7 +102,7 @@ verify_dependencies() {
     [[ ! -f "$COMPLIANCE_SCRIPT" ]] && missing_deps+=("compliance-checker.sh")
     [[ ! -f "$DEPENDENCY_SCRIPT" ]] && missing_deps+=("dependency-updater.sh")
     [[ ! -f "$BULK_OPERATIONS_SCRIPT" ]] && missing_deps+=("bulk-operations.sh")
-    [[ ! -f "$WORKSPACE_SETUP_SCRIPT" ]] && missing_deps+=("setup-workspace-dynamic.sh")
+    [[ ! -f "$WORKSPACE_SETUP_SCRIPT" ]] && missing_deps+=("enhanced-workspace-setup.sh")
     
     # Check for required system utilities
     command -v git >/dev/null 2>&1 || missing_deps+=("git")
@@ -360,55 +360,17 @@ operation_maintenance_check() {
 }
 
 operation_workspace_setup() {
-    print_header "📁 Workspace Setup"
-    print_info "Setting up infrastructure workspace with dynamic repository discovery..."
+    print_header "📁 Enhanced Workspace Setup"
+    print_info "Setting up infrastructure workspace with enhanced repository discovery..."
+    print_info "Features: Interactive workspace selection, team-based organization, enhanced progress tracking"
     
-    # Check for GitHub token
-    if [[ -z "${GITHUB_TOKEN:-}" ]]; then
-        print_warning "GITHUB_TOKEN environment variable not set"
-        print_info "Repository discovery requires GitHub authentication"
-        echo -e "\n${BLUE}${INFO_SIGN}${NC} ${DIM}To create a GitHub token:${NC}"
-        echo -e "${DIM}  Classic tokens: https://github.com/settings/tokens${NC}"
-        echo -e "${DIM}  Fine-grained tokens: https://github.com/settings/personal-access-tokens/new${NC}"
-        echo -e "${DIM}  Required scope: 'repo' access for repository operations${NC}"
-        echo -e "\n${YELLOW}Please enter your GitHub Personal Access Token:${NC}"
-        echo -e "${DIM}(Token will be hidden as you type and not logged)${NC}"
-        
-        # Prompt for token with hidden input
-        local github_token
-        echo -n -e "${CYAN}GitHub Token: ${NC}"
-        read -r -s github_token
-        echo # New line after hidden input
-        
-        # Validate token is not empty
-        if [[ -z "$github_token" ]]; then
-            print_error "No token provided. Workspace setup cancelled."
-            return 1
-        fi
-        
-        # Validate token format (basic check)
-        if [[ ! "$github_token" =~ ^(gh[ps]_[a-zA-Z0-9]{36}|github_pat_[a-zA-Z0-9_]{82}|[a-fA-F0-9]{40})$ ]]; then
-            print_warning "Token format doesn't match expected GitHub token patterns"
-            echo -e "${DIM}Expected formats: ghp_... (personal), ghs_... (server), github_pat_... (fine-grained), or 40-char hex${NC}"
-            echo -e "${YELLOW}Continue anyway? (y/N):${NC} "
-            read -r confirm
-            if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
-                print_info "Workspace setup cancelled"
-                return 1
-            fi
-        fi
-        
-        # Export token for the workspace setup script
-        export GITHUB_TOKEN="$github_token"
-        print_success "GitHub token configured for this session"
-        
-        # Clear the local variable for security
-        unset github_token
-    else
-        print_success "Using existing GITHUB_TOKEN from environment"
+    # Check if we should run in non-interactive mode when called from orchestrator
+    if [[ "${1:-}" == "--non-interactive" ]]; then
+        export NON_INTERACTIVE=true
+        print_info "Running in non-interactive mode with default settings"
     fi
     
-    execute_script "$WORKSPACE_SETUP_SCRIPT" "Workspace Setup"
+    execute_script "$WORKSPACE_SETUP_SCRIPT" "Enhanced Workspace Setup"
 }
 
 # Workflow automation functions
@@ -598,7 +560,7 @@ system_status() {
     
     echo -e "\n${BOLD}Available Scripts:${NC}"
     local scripts=(
-        "$WORKSPACE_SETUP_SCRIPT:Workspace Setup"
+        "$WORKSPACE_SETUP_SCRIPT:Enhanced Workspace Setup"
         "$MAINTENANCE_SCRIPT:Maintenance Check"
         "$HEALTH_REPORTER_SCRIPT:Health Reporter"
         "$COMPLIANCE_SCRIPT:Compliance Checker"
