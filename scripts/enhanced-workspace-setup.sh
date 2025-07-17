@@ -1,10 +1,10 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # Enhanced Infrastructure Workspace Setup
 # Discovers all infrastructure repositories with enhanced pattern matching and interactive setup
 # Supports both legacy and new naming conventions
 
-set -euo pipefail
+set -eo pipefail
 
 # Color definitions
 readonly GREEN='\033[0;32m'
@@ -98,31 +98,35 @@ select_workspace() {
     echo
 }
 
-# Enhanced progress indicator with percentage - updates in place
-show_progress() {
+# Simple overall progress indicator that updates in place
+show_overall_progress() {
     local current=$1
     local total=$2
-    local operation="$3"
-    local status="${4:-}"
+    
+    # Cap current at total to prevent overflow
+    if [[ $current -gt $total ]]; then
+        current=$total
+    fi
+    
     local percentage=$((current * 100 / total))
-    local filled=$((percentage / 5))
-    local empty=$((20 - filled))
+    # Cap percentage at 100%
+    if [[ $percentage -gt 100 ]]; then
+        percentage=100
+    fi
+    
+    # Fixed bar length of 40 characters
+    local filled=$((percentage * 40 / 100))
+    local empty=$((40 - filled))
     
     local bar=""
     for ((i=0; i<filled; i++)); do bar+="█"; done
     for ((i=0; i<empty; i++)); do bar+="░"; done
     
-    # Clear the line and show progress
-    printf "\r\033[K${CYAN}[$current/$total] ${WHITE}$operation${NC} |$bar| ${BOLD}${percentage}%%${NC}"
+    # Simple clean progress bar with fixed width
+    printf "\r\033[2K${CYAN}Processing repositories${NC} |${bar}| ${BOLD}${GREEN}${percentage}%%${NC} ${DIM}($current/$total)${NC}"
     
-    # Add status if provided
-    if [[ -n "$status" ]]; then
-        printf " ${status}"
-    fi
-    
-    # Only add newline at the end
     if [[ $current -eq $total ]]; then
-        echo
+        echo -e " ${GREEN}✓ Complete${NC}"
     fi
 }
 
@@ -249,7 +253,7 @@ if [[ -z "${GITHUB_TOKEN:-}" ]]; then
 fi
 
 # Create base directory structure
-mkdir -p "$WORKSPACE_DIR/teams" "$WORKSPACE_DIR/shared"
+mkdir -p "$WORKSPACE_DIR/teams" "$WORKSPACE_DIR/shared" "$SCRIPT_DIR/temp"
 echo -e "${GREEN}✓ Base directory structure ready${NC}"
 echo
 
@@ -314,95 +318,242 @@ done <<< "$all_repos"
 DISCOVERED_REPOS=("${repos[@]}")
 total=${#repos[@]}
 
-echo -e "${GREEN}✓ Found $total infrastructure repositories:${NC}"
-echo "$all_repos" | sed 's/^/  • /'
+echo -e "${GREEN}✓ Found $total infrastructure repositories${NC}"
 echo
 
-# Process each repository with clean progress tracking
-current=0
+# Use simple arrays for compatibility with older bash versions
+declare -a repo_list=("${repos[@]}")
+declare -a status_list=()
+declare -a org_info_list=()
+
+# Function to determine organization info for a repo
+get_org_info() {
+    local repo="$1"
+    if [[ "$repo" =~ ^mob-infra- ]] || [[ "$repo" =~ ^mob-infrastructure- ]]; then
+        echo "shared/$repo"
+        return
+    fi
+    
+    if [[ "$repo" =~ ^([a-z]+)-infra-(global|dev|prod|staging)-(.+)$ ]]; then
+        echo "teams/${BASH_REMATCH[1]}/${BASH_REMATCH[2]}/${BASH_REMATCH[3]}"
+        return
+    fi
+    
+    if [[ "$repo" =~ ^([a-z]+)-infra-(.+)$ ]]; then
+        echo "teams/${BASH_REMATCH[1]}/${BASH_REMATCH[2]}"
+        return
+    fi
+    
+    echo "shared/$repo"
+}
+
+# Initialize status and org info arrays
 for repo in "${repos[@]}"; do
-    ((current++))
-    
-    # Enhanced target directory logic with proper nested structure
-    target_dir=""
-    organization_info=""
-    if [[ "$repo" =~ ^mob-infra- ]]; then
-        # New pattern: mob-infra-cicd, mob-infra-core
-        target_dir="$WORKSPACE_DIR/shared/$repo"
-        organization_info="shared/$repo"
-    elif [[ "$repo" =~ ^mob-infrastructure- ]]; then
-        # Legacy pattern: mob-infrastructure-cicd, mob-infrastructure-core
-        target_dir="$WORKSPACE_DIR/shared/$repo"
-        organization_info="shared/$repo"
-    elif [[ "$repo" =~ ^([a-z]+)-infra-(global|dev|prod|staging)-(.+)$ ]]; then
-        # Pattern: team-infra-environment-resource -> teams/team/environment/resource
-        team_name="${BASH_REMATCH[1]}"
-        environment="${BASH_REMATCH[2]}"
-        resource="${BASH_REMATCH[3]}"
-        mkdir -p "$WORKSPACE_DIR/teams/$team_name/$environment"
-        target_dir="$WORKSPACE_DIR/teams/$team_name/$environment/$resource"
-        organization_info="teams/$team_name/$environment/$resource"
-    elif [[ "$repo" =~ ^([a-z]+)-infra-(.+)$ ]]; then
-        # Fallback pattern: team-infra-resource -> teams/team/resource (for edge cases)
-        team_name="${BASH_REMATCH[1]}"
-        remaining="${BASH_REMATCH[2]}"
-        mkdir -p "$WORKSPACE_DIR/teams/$team_name"
-        target_dir="$WORKSPACE_DIR/teams/$team_name/$remaining"
-        organization_info="teams/$team_name/$remaining"
-    else
-        # Default to shared for unknown patterns
-        target_dir="$WORKSPACE_DIR/shared/$repo"
-        organization_info="shared/$repo"
-    fi
-    
-    repo_url="git@github.com:${GITHUB_ORG}/${repo}.git"
-    
-    # Show progress with current operation
-    if [[ -d "$target_dir" ]]; then
-        show_progress $current $total "$repo" "${YELLOW}⟳ Updating...${NC}"
-        (
-            cd "$target_dir"
-            if git fetch --all --prune >/dev/null 2>&1; then
-                if git reset --hard origin/main >/dev/null 2>&1 || git reset --hard origin/master >/dev/null 2>&1; then
-                    UPDATED_REPOS+=("$repo")
-                    show_progress $current $total "$repo" "${GREEN}✓ Updated → $organization_info${NC}"
-                else
-                    FAILED_REPOS+=("$repo")
-                    show_progress $current $total "$repo" "${RED}✗ Failed to reset${NC}"
-                fi
-            else
-                FAILED_REPOS+=("$repo")
-                show_progress $current $total "$repo" "${RED}✗ Failed to fetch${NC}"
-            fi
-        )
-    else
-        show_progress $current $total "$repo" "${CYAN}⬇ Cloning...${NC}"
-        if git clone "$repo_url" "$target_dir" >/dev/null 2>&1; then
-            CLONED_REPOS+=("$repo")
-            show_progress $current $total "$repo" "${GREEN}✓ Cloned → $organization_info${NC}"
-        else
-            FAILED_REPOS+=("$repo")
-            show_progress $current $total "$repo" "${RED}✗ Failed to clone${NC}"
-        fi
-    fi
-    
-    # Brief pause to let user see the result before next item
-    sleep 0.3
+    status_list+=("⏰")
+    org_info_list+=("$(get_org_info "$repo")")
 done
 
+# Helper functions to get/set status by repo name
+get_repo_index() {
+    local search_repo="$1"
+    local index=0
+    for repo in "${repo_list[@]}"; do
+        if [[ "$repo" == "$search_repo" ]]; then
+            echo $index
+            return
+        fi
+        ((index++))
+    done
+    echo -1
+}
+
+set_repo_status() {
+    local repo="$1"
+    local new_status="$2"
+    local index=$(get_repo_index "$repo")
+    if [[ $index -ge 0 ]]; then
+        status_list[$index]="$new_status"
+    fi
+}
+
+get_repo_status() {
+    local repo="$1"
+    local status_file="$SCRIPT_DIR/temp/status_${repo//[^a-zA-Z0-9]/_}"
+    
+    # Check if status file exists and read from it
+    if [[ -f "$status_file" ]]; then
+        cat "$status_file"
+    else
+        # Fall back to array-based status
+        local index=$(get_repo_index "$repo")
+        if [[ $index -ge 0 ]]; then
+            echo "${status_list[$index]}"
+        else
+            echo "⏰"
+        fi
+    fi
+}
+
+get_repo_org_info() {
+    local repo="$1"
+    local index=$(get_repo_index "$repo")
+    if [[ $index -ge 0 ]]; then
+        echo "${org_info_list[$index]}"
+    else
+        echo "shared/$repo"
+    fi
+}
+
+# Function to display the repository list with status
+display_repo_list() {
+    # Move cursor up by number of repos + 3 lines (header + blank lines)
+    if [[ "${1:-}" != "first" ]]; then
+        printf "\033[%dA" $((total + 3))
+    fi
+    
+    echo -e "${CYAN}${BOLD}📦 Repository Processing Status:${NC}"
+    echo
+    
+    local index=0
+    for repo in "${repo_list[@]}"; do
+        local status=$(get_repo_status "$repo")
+        local org_info="${org_info_list[$index]}"
+        printf "  %s ${WHITE}%s${NC} ${DIM}→ %s${NC}\n" "$status" "$repo" "$org_info"
+        ((index++))
+    done
+    echo
+}
+
+# Process repository function with file-based status tracking for parallel processing
+process_repo_simple() {
+    local repo="$1"
+    local workspace_dir="$2"
+    local github_org="$3"
+    
+    # Create a status file for this repo in temp directory
+    local status_file="$SCRIPT_DIR/temp/status_${repo//[^a-zA-Z0-9]/_}"
+    
+    # Update status to processing
+    echo "🔄" > "$status_file"
+    
+    # Determine target directory
+    local org_info=$(get_repo_org_info "$repo")
+    local target_dir="$workspace_dir/${org_info}"
+    
+    # Create directory structure
+    mkdir -p "$(dirname "$target_dir")"
+    
+    local repo_url="git@github.com:${github_org}/${repo}.git"
+    
+    # Process repository
+    if [[ -d "$target_dir" ]]; then
+        # Repository exists, update it
+        if (cd "$target_dir" && git fetch --all --prune >/dev/null 2>&1 && 
+            (git reset --hard origin/main >/dev/null 2>&1 || git reset --hard origin/master >/dev/null 2>&1)); then
+            echo "✅" > "$status_file"
+        else
+            echo "❌" > "$status_file"
+        fi
+    else
+        # Repository doesn't exist, clone it
+        if git clone "$repo_url" "$target_dir" >/dev/null 2>&1; then
+            echo "✅" > "$status_file"
+        else
+            echo "❌" > "$status_file"
+        fi
+    fi
+}
+
+# Display initial list
+display_repo_list "first"
+
+# Start background processes with debugging
+echo -e "${CYAN}Starting ${#repos[@]} background processes...${NC}"
+
+for repo in "${repos[@]}"; do
+    process_repo_simple "$repo" "$WORKSPACE_DIR" "$GITHUB_ORG" &
+done
+
+echo -e "${CYAN}All processes started. Monitoring progress...${NC}"
+
+# Monitor progress and update display
+max_iterations=300  # 5 minutes timeout
+iteration=0
+
+while true; do
+    # Count completed jobs
+    active_jobs=$(jobs -r | wc -l)
+    
+    # Update display
+    display_repo_list
+    
+    # Debug: Show active jobs count
+    echo -e "${DIM}Active jobs: $active_jobs${NC}"
+    
+    # Check if all done
+    if [[ $active_jobs -eq 0 ]]; then
+        echo -e "${GREEN}All background processes completed${NC}"
+        break
+    fi
+    
+    # Timeout protection
+    ((iteration++))
+    if [[ $iteration -gt $max_iterations ]]; then
+        echo -e "${YELLOW}Timeout reached, stopping monitoring${NC}"
+        break
+    fi
+    
+    sleep 1
+done
+
+# Wait for any remaining processes
+wait
+
+# Generate summary from status tracking
 echo
-echo -e "${GREEN}${BOLD}🎉 Workspace setup completed!${NC}"
+echo -e "${GREEN}${BOLD}🎉 Repository processing completed!${NC}"
 echo
 
-# Summary statistics
-echo -e "${CYAN}${BOLD}Summary:${NC}"
-echo -e "  ${GREEN}✓ Repositories discovered:${NC} ${#DISCOVERED_REPOS[@]}"
-echo -e "  ${GREEN}✓ Repositories cloned:${NC} ${#CLONED_REPOS[@]}"
-echo -e "  ${YELLOW}⟳ Repositories updated:${NC} ${#UPDATED_REPOS[@]}"
+# Count results by status
+successful_count=0
+failed_count=0
+SUCCESSFUL_REPOS=()
+FAILED_REPOS=()
+
+index=0
+for repo in "${repo_list[@]}"; do
+    status=$(get_repo_status "$repo")
+    org_info="${org_info_list[$index]}"
+    
+    if [[ "$status" == "✅" ]]; then
+        ((successful_count++))
+        SUCCESSFUL_REPOS+=("$repo → $org_info")
+    elif [[ "$status" == "❌" ]]; then
+        ((failed_count++))
+        FAILED_REPOS+=("$repo")
+    fi
+    ((index++))
+done
+
+# Enhanced summary
+echo -e "${CYAN}${BOLD}📊 Processing Summary:${NC}"
+echo -e "  ${GREEN}✓ Total repositories:${NC} $total"
+echo -e "  ${GREEN}✓ Successfully processed:${NC} $successful_count"
+if [[ $failed_count -gt 0 ]]; then
+    echo -e "  ${RED}❌ Failed operations:${NC} $failed_count"
+fi
+
+# Show successful operations
+if [[ ${#SUCCESSFUL_REPOS[@]} -gt 0 ]]; then
+    echo -e "\n${GREEN}${BOLD}✅ Successfully Processed:${NC}"
+    printf '  • %s\n' "${SUCCESSFUL_REPOS[@]}"
+fi
+
+# Show failed operations
 if [[ ${#FAILED_REPOS[@]} -gt 0 ]]; then
-    echo -e "  ${RED}✗ Failed operations:${NC} ${#FAILED_REPOS[@]}"
-    echo -e "\n${RED}Failed repositories:${NC}"
+    echo -e "\n${RED}${BOLD}❌ Failed:${NC}"
     printf '  • %s\n' "${FAILED_REPOS[@]}"
+    echo -e "\n${YELLOW}💡 Check SSH keys and repository permissions for failed repos${NC}"
 fi
 
 echo -e "\n${CYAN}Workspace directory:${NC} $WORKSPACE_DIR"
@@ -540,3 +691,8 @@ echo -e "  ${WHITE}•${NC} ${CYAN}README.md${NC} - Project documentation"
 echo -e "  ${WHITE}•${NC} ${CYAN}infrastructure-workspace.code-workspace${NC} - VS Code workspace"
 
 echo -e "\n${DIM}💡 Tip: Re-run this script anytime to discover new infrastructure repositories!${NC}"
+
+# Cleanup temp status files
+if [[ -d "$SCRIPT_DIR/temp" ]]; then
+    rm -f "$SCRIPT_DIR/temp/status_"*
+fi

@@ -399,7 +399,29 @@ operation_workspace_setup() {
     
     # Allow interactive workspace selection but skip auth prompts
     export SKIP_AUTH_PROMPT=true
-    execute_script "$WORKSPACE_SETUP_SCRIPT" "Enhanced Workspace Setup"
+    
+    # Execute without progress spinner since workspace setup has its own progress
+    print_section "Starting Enhanced Workspace Setup"
+    if [[ ! -f "$WORKSPACE_SETUP_SCRIPT" ]]; then
+        print_error "Script not found: $WORKSPACE_SETUP_SCRIPT"
+        track_operation "Enhanced Workspace Setup" "failed"
+        return 1
+    fi
+    
+    if [[ ! -x "$WORKSPACE_SETUP_SCRIPT" ]]; then
+        chmod +x "$WORKSPACE_SETUP_SCRIPT"
+    fi
+    
+    # Run directly without orchestrator spinner
+    if "$WORKSPACE_SETUP_SCRIPT"; then
+        print_success "Enhanced Workspace Setup completed successfully"
+        track_operation "Enhanced Workspace Setup" "success"
+        return 0
+    else
+        print_error "Enhanced Workspace Setup failed"
+        track_operation "Enhanced Workspace Setup" "failed"
+        return 1
+    fi
 }
 
 # Workflow automation functions
