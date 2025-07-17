@@ -19,7 +19,8 @@ readonly NC='\033[0m' # No Color
 # Script configuration
 readonly SCRIPT_NAME="$(basename "$0")"
 readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-readonly WORKSPACE_DIR="$(dirname "$SCRIPT_DIR")"
+# Calculate infrastructure root: /path/to/infrastructure/shared/mob-infrastructure-cicd/scripts -> /path/to/infrastructure
+readonly WORKSPACE_DIR="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 readonly LOG_FILE="${SCRIPT_DIR}/logs/setup-workspace-$(date +%Y%m%d-%H%M%S).log"
 readonly DISCOVERY_SCRIPT="${SCRIPT_DIR}/dynamic-repo-discovery.sh"
 
