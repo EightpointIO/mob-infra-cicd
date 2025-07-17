@@ -558,25 +558,8 @@ fi
 
 echo -e "\n${CYAN}Workspace directory:${NC} $WORKSPACE_DIR"
 
-# Create symlink to VS Code workspace file
-workspace_file="$WORKSPACE_DIR/infrastructure-workspace.code-workspace"
-script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-workspace_template="$script_dir/../workspace/infrastructure-workspace.code-workspace"
-echo -e "${CYAN}📝 Creating workspace symlink...${NC}"
-
-# Skip if workspace file already exists (to preserve existing setup)
-if [[ -f "$workspace_file" ]] || [[ -L "$workspace_file" ]]; then
-    echo -e "${YELLOW}⚠️  Workspace file already exists, skipping to preserve existing setup${NC}"
-elif [[ -f "$workspace_template" ]]; then
-    # Create symlink to the workspace template
-    ln -s "shared/mob-infra-cicd/workspace/infrastructure-workspace.code-workspace" "$workspace_file"
-else
-    echo -e "${RED}❌ Workspace template not found: $workspace_template${NC}"
-    exit 1
-fi
-
-echo -e "${GREEN}✓ Enhanced VS Code workspace generated:${NC} $(basename "$workspace_file")"
-echo -e "${CYAN}Open with:${NC} code '$workspace_file'"
+echo -e "${GREEN}✓ Enhanced workspace setup completed${NC}"
+echo -e "${CYAN}To open in VS Code:${NC} cd $WORKSPACE_DIR && code ."
 
 # Copy important files to workspace root for easy access
 echo -e "${CYAN}📋 Copying important files to workspace root...${NC}"
