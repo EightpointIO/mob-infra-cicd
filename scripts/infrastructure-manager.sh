@@ -364,12 +364,41 @@ operation_workspace_setup() {
     print_info "Setting up infrastructure workspace with enhanced repository discovery..."
     print_info "Features: Interactive workspace selection, team-based organization, enhanced progress tracking"
     
-    # Check if we should run in non-interactive mode when called from orchestrator
-    if [[ "${1:-}" == "--non-interactive" ]]; then
-        export NON_INTERACTIVE=true
-        print_info "Running in non-interactive mode with default settings"
+    # Check for GitHub token before running
+    if [[ -z "${GITHUB_TOKEN:-}" ]]; then
+        print_warning "GITHUB_TOKEN environment variable not set"
+        print_info "Repository discovery requires GitHub authentication"
+        echo -e "\n${BLUE}${INFO_SIGN}${NC} ${DIM}To create a GitHub token:${NC}"
+        echo -e "${DIM}  Classic tokens: https://github.com/settings/tokens${NC}"
+        echo -e "${DIM}  Fine-grained tokens: https://github.com/settings/personal-access-tokens/new${NC}"
+        echo -e "${DIM}  Required scope: 'repo' access for repository operations${NC}"
+        echo -e "\n${YELLOW}Please enter your GitHub Personal Access Token:${NC}"
+        echo -e "${DIM}(Token will be hidden as you type and not logged)${NC}"
+        
+        # Prompt for token with hidden input
+        local github_token
+        echo -n -e "${CYAN}GitHub Token: ${NC}"
+        read -r -s github_token < /dev/tty
+        echo # New line after hidden input
+        
+        # Validate token is not empty
+        if [[ -z "$github_token" ]]; then
+            print_error "No token provided. Workspace setup cancelled."
+            return 1
+        fi
+        
+        # Export token for the workspace setup script
+        export GITHUB_TOKEN="$github_token"
+        print_success "GitHub token configured for this session"
+        
+        # Clear the local variable for security
+        unset github_token
+    else
+        print_success "Using existing GITHUB_TOKEN from environment"
     fi
     
+    # Run in non-interactive mode since we've handled auth here
+    export NON_INTERACTIVE=true
     execute_script "$WORKSPACE_SETUP_SCRIPT" "Enhanced Workspace Setup"
 }
 

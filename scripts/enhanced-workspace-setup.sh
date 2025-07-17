@@ -47,7 +47,7 @@ select_workspace() {
         echo -e "${DIM}Choose an option (1-2, default: 1):${NC} "
         
         # Use timeout for read to avoid hanging
-        if read -t 30 -r workspace_choice; then
+        if read -t 30 -r workspace_choice < /dev/tty; then
             case $workspace_choice in
                 1|"")
                     WORKSPACE_DIR="$DEFAULT_WORKSPACE"
@@ -55,7 +55,7 @@ select_workspace() {
                     ;;
                 2)
                     echo -e "${CYAN}Enter custom workspace path:${NC} "
-                    if read -t 30 -r custom_path; then
+                    if read -t 30 -r custom_path < /dev/tty; then
                         if [[ -z "$custom_path" ]]; then
                             echo -e "${YELLOW}⚠ No path provided, using default${NC}"
                             WORKSPACE_DIR="$DEFAULT_WORKSPACE"
@@ -160,14 +160,24 @@ setup_github_auth() {
     echo -e "${WHITE}Please enter your GitHub Personal Access Token:${NC}"
     echo -e "${DIM}(Token will be hidden as you type and not logged)${NC}"
     
-    # Prompt for token with hidden input and timeout
+    # Prompt for token with hidden input and extended timeout
     local github_token
     echo -n -e "${CYAN}GitHub Token: ${NC}"
-    if read -t 60 -r -s github_token; then
-        echo # New line after hidden input
+    
+    # Try different input methods for better compatibility
+    if [[ -t 0 ]]; then
+        # Standard terminal input
+        if read -t 120 -r -s github_token < /dev/tty; then
+            echo # New line after hidden input
+        else
+            echo
+            echo -e "${RED}✗ Input timeout (120 seconds). Setup cancelled.${NC}"
+            echo -e "${YELLOW}💡 Tip: Set GITHUB_TOKEN environment variable to skip this prompt${NC}"
+            return 1
+        fi
     else
-        echo
-        echo -e "${RED}✗ Input timeout. Setup cancelled.${NC}"
+        # Fallback for non-interactive environments
+        echo -e "${RED}✗ Non-interactive environment detected. Please set GITHUB_TOKEN environment variable.${NC}"
         return 1
     fi
     
@@ -183,7 +193,7 @@ setup_github_auth() {
         echo -e "${YELLOW}⚠ Token format doesn't match expected GitHub patterns${NC}"
         echo -e "${DIM}Expected formats: ghp_..., ghs_..., github_pat_..., or 40-char hex${NC}"
         echo -e "${WHITE}Continue anyway? (y/N):${NC} "
-        if read -t 30 -r confirm; then
+        if read -t 30 -r confirm < /dev/tty; then
             if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
                 echo -e "${CYAN}ℹ Setup cancelled${NC}"
                 return 1
