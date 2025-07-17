@@ -24,7 +24,7 @@ readonly LOG_FILE="${SCRIPT_DIR}/logs/setup-workspace-$(date +%Y%m%d-%H%M%S).log
 readonly DISCOVERY_SCRIPT="${SCRIPT_DIR}/dynamic-repo-discovery.sh"
 
 # Default configuration
-readonly DEFAULT_ORG="your-github-org"
+readonly DEFAULT_ORG="EightpointIO"
 readonly DEFAULT_BASE_URL="git@github.com"
 readonly WORKSPACE_CONFIG_FILE="${WORKSPACE_DIR}/infrastructure-workspace.code-workspace"
 

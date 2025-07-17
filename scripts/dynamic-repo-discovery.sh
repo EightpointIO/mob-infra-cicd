@@ -26,7 +26,7 @@ readonly LOG_FILE="${SCRIPT_DIR}/logs/repo-discovery-$(date +%Y%m%d-%H%M%S).log"
 readonly RATE_LIMIT_FILE="${CACHE_DIR}/rate-limit.json"
 
 # Configuration
-readonly DEFAULT_ORG="your-github-org"
+readonly DEFAULT_ORG="EightpointIO"
 readonly CACHE_EXPIRY_HOURS=1
 readonly MAX_PER_PAGE=100
 readonly SUPPORTED_TEAMS=("ios" "android")
@@ -225,7 +225,7 @@ fetch_repositories() {
         show_progress $current $total_repos "Filtering infrastructure repositories"
         
         # Check naming pattern: {team}-infra-{environment}-{resource}
-        if [[ "$repo" =~ ^(ios|android)-infra-(dev|prod|global)-.+ ]]; then
+        if [[ "$repo" =~ ^[a-zA-Z0-9_-]+-infra-(dev|prod|global)-.+ ]]; then
             infra_repos+=("$repo")
             log "DEBUG" "Found infrastructure repo: $repo"
         # Check exception patterns: mob-infrastructure-{cicd,core}
