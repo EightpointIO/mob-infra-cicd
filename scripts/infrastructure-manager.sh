@@ -132,26 +132,46 @@ print_section() {
 
 print_success() {
     local text="$1"
+    # Sanitize sensitive information before logging
+    local log_text="$text"
+    log_text="${log_text//ghp_[a-zA-Z0-9]*/[GITHUB_TOKEN_REDACTED]}"
+    log_text="${log_text//ghs_[a-zA-Z0-9]*/[GITHUB_TOKEN_REDACTED]}"
+    
     echo -e "${GREEN}${CHECK_MARK}${NC} $text"
-    echo "SUCCESS: $text" >> "$SESSION_LOG"
+    echo "SUCCESS: $log_text" >> "$SESSION_LOG"
 }
 
 print_error() {
     local text="$1"
+    # Sanitize sensitive information before logging
+    local log_text="$text"
+    log_text="${log_text//ghp_[a-zA-Z0-9]*/[GITHUB_TOKEN_REDACTED]}"
+    log_text="${log_text//ghs_[a-zA-Z0-9]*/[GITHUB_TOKEN_REDACTED]}"
+    
     echo -e "${RED}${CROSS_MARK}${NC} $text" >&2
-    echo "ERROR: $text" >> "$SESSION_LOG"
+    echo "ERROR: $log_text" >> "$SESSION_LOG"
 }
 
 print_warning() {
     local text="$1"
+    # Sanitize sensitive information before logging
+    local log_text="$text"
+    log_text="${log_text//ghp_[a-zA-Z0-9]*/[GITHUB_TOKEN_REDACTED]}"
+    log_text="${log_text//ghs_[a-zA-Z0-9]*/[GITHUB_TOKEN_REDACTED]}"
+    
     echo -e "${YELLOW}${WARNING_SIGN}${NC} $text"
-    echo "WARNING: $text" >> "$SESSION_LOG"
+    echo "WARNING: $log_text" >> "$SESSION_LOG"
 }
 
 print_info() {
     local text="$1"
+    # Sanitize sensitive information before logging
+    local log_text="$text"
+    log_text="${log_text//ghp_[a-zA-Z0-9]*/[GITHUB_TOKEN_REDACTED]}"
+    log_text="${log_text//ghs_[a-zA-Z0-9]*/[GITHUB_TOKEN_REDACTED]}"
+    
     echo -e "${BLUE}${INFO_SIGN}${NC} $text"
-    echo "INFO: $text" >> "$SESSION_LOG"
+    echo "INFO: $log_text" >> "$SESSION_LOG"
 }
 
 print_recommendation() {
@@ -182,6 +202,11 @@ track_operation() {
     local op_status="$2"
     local timestamp="$(date)"
     
+    # Sanitize operation name for logging
+    local log_operation="$operation"
+    log_operation="${log_operation//ghp_[a-zA-Z0-9]*/[GITHUB_TOKEN_REDACTED]}"
+    log_operation="${log_operation//ghs_[a-zA-Z0-9]*/[GITHUB_TOKEN_REDACTED]}"
+    
     EXECUTED_OPERATIONS+=("$operation")
     OPERATION_STATUS["$operation"]="$op_status"
     OPERATION_TIMESTAMPS["$operation"]="$timestamp"
@@ -194,7 +219,7 @@ track_operation() {
         ((FAILED_OPERATIONS_COUNT++))
     fi
     
-    echo "OPERATION: $operation | STATUS: $op_status | TIME: $timestamp" >> "$SESSION_LOG"
+    echo "OPERATION: $log_operation | STATUS: $op_status | TIME: $timestamp" >> "$SESSION_LOG"
 }
 
 # Execute script with error handling and tracking
@@ -336,11 +361,45 @@ operation_workspace_setup() {
     if [[ -z "${GITHUB_TOKEN:-}" ]]; then
         print_warning "GITHUB_TOKEN environment variable not set"
         print_info "Repository discovery requires GitHub authentication"
-        echo -e "\n${DIM}Please set your GitHub token:${NC}"
-        echo -e "  ${CYAN}export GITHUB_TOKEN='your_github_token'${NC}"
-        echo -e "\n${DIM}Or run workspace setup directly:${NC}"
-        echo -e "  ${CYAN}$WORKSPACE_SETUP_SCRIPT${NC}"
-        return 1
+        echo -e "\n${BLUE}${INFO_SIGN}${NC} ${DIM}To create a GitHub token:${NC}"
+        echo -e "${DIM}  1. Go to https://github.com/settings/tokens${NC}"
+        echo -e "${DIM}  2. Generate new token (classic)${NC}"
+        echo -e "${DIM}  3. Select 'repo' scope for repository access${NC}"
+        echo -e "\n${YELLOW}Please enter your GitHub Personal Access Token:${NC}"
+        echo -e "${DIM}(Token will be hidden as you type and not logged)${NC}"
+        
+        # Prompt for token with hidden input
+        local github_token
+        echo -n -e "${CYAN}GitHub Token: ${NC}"
+        read -r -s github_token
+        echo # New line after hidden input
+        
+        # Validate token is not empty
+        if [[ -z "$github_token" ]]; then
+            print_error "No token provided. Workspace setup cancelled."
+            return 1
+        fi
+        
+        # Validate token format (basic check)
+        if [[ ! "$github_token" =~ ^(gh[ps]_[a-zA-Z0-9]{36}|[a-fA-F0-9]{40})$ ]]; then
+            print_warning "Token format doesn't match expected GitHub token patterns"
+            echo -e "${DIM}Expected formats: ghp_... (personal) or ghs_... (server) or 40-char hex${NC}"
+            echo -e "${YELLOW}Continue anyway? (y/N):${NC} "
+            read -r confirm
+            if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
+                print_info "Workspace setup cancelled"
+                return 1
+            fi
+        fi
+        
+        # Export token for the workspace setup script
+        export GITHUB_TOKEN="$github_token"
+        print_success "GitHub token configured for this session"
+        
+        # Clear the local variable for security
+        unset github_token
+    else
+        print_success "Using existing GITHUB_TOKEN from environment"
     fi
     
     execute_script "$WORKSPACE_SETUP_SCRIPT" "Workspace Setup"
