@@ -42,7 +42,7 @@ readonly LIGHTNING="⚡"
 
 # Configuration
 readonly SCRIPT_DIR="$(cd "$(dirname "${(%):-%N}")" && pwd)"
-readonly PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+readonly PROJECT_ROOT="$(dirname "$(dirname "$SCRIPT_DIR")")"
 readonly LOGS_DIR="${SCRIPT_DIR}/logs"
 readonly REPORTS_DIR="${PROJECT_ROOT}/reports"
 readonly TEMP_DIR="${SCRIPT_DIR}/temp"
