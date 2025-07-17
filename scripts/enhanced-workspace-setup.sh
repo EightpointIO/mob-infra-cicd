@@ -558,78 +558,17 @@ fi
 
 echo -e "\n${CYAN}Workspace directory:${NC} $WORKSPACE_DIR"
 
-# Enhanced VS Code workspace generation
+# Copy VS Code workspace from stored template
 workspace_file="$WORKSPACE_DIR/infrastructure-workspace.code-workspace"
-echo -e "${CYAN}📝 Generating enhanced VS Code workspace...${NC}"
+workspace_template="$WORKSPACE_DIR/shared/mob-infra-cicd/workspace/infrastructure-workspace.code-workspace"
+echo -e "${CYAN}📝 Copying VS Code workspace from template...${NC}"
 
-# Dynamically generate folder structure based on discovered teams
-teams_folders=""
-if [[ -d "$WORKSPACE_DIR/teams" ]]; then
-    for team_dir in "$WORKSPACE_DIR/teams"/*; do
-        if [[ -d "$team_dir" ]]; then
-            team_name=$(basename "$team_dir")
-            teams_folders+=",
-        {
-            \"name\": \"teams/$team_name\",
-            \"path\": \"./teams/$team_name\"
-        }"
-        fi
-    done
+if [[ -f "$workspace_template" ]]; then
+    cp "$workspace_template" "$workspace_file"
+else
+    echo -e "${RED}❌ Workspace template not found: $workspace_template${NC}"
+    exit 1
 fi
-
-cat > "$workspace_file" << EOF
-{
-    "folders": [
-        {
-            "name": "🏢 shared",
-            "path": "./shared"
-        }${teams_folders}
-    ],
-    "settings": {
-        "terraform.experimentalFeatures.validateOnSave": true,
-        "terraform.indexing": {
-            "enabled": true,
-            "liveIndexing": true
-        },
-        "files.associations": {
-            "*.tf": "terraform",
-            "*.tfvars": "terraform",
-            "*.hcl": "hcl"
-        },
-        "editor.formatOnSave": true,
-        "editor.codeActionsOnSave": {
-            "source.fixAll": true
-        },
-        "files.trimTrailingWhitespace": true,
-        "files.insertFinalNewline": true,
-        "search.exclude": {
-            "**/.terraform": true,
-            "**/.terraform.lock.hcl": false,
-            "**/node_modules": true,
-            "**/.git": true,
-            "**/terraform.tfstate*": true
-        },
-        "files.exclude": {
-            "**/.terraform/providers": true,
-            "**/.terraform/modules": true
-        },
-        "git.ignoreLimitWarning": true,
-        "workbench.colorCustomizations": {
-            "titleBar.activeBackground": "#1a73e8",
-            "titleBar.activeForeground": "#ffffff"
-        }
-    },
-    "extensions": {
-        "recommendations": [
-            "hashicorp.terraform",
-            "ms-vscode.vscode-json",
-            "redhat.vscode-yaml",
-            "ms-vscode.PowerShell",
-            "eamodio.gitlens"
-        ]
-    }
-}
-EOF
 
 echo -e "${GREEN}✓ Enhanced VS Code workspace generated:${NC} $(basename "$workspace_file")"
 echo -e "${CYAN}Open with:${NC} code '$workspace_file'"

@@ -325,103 +325,27 @@ process_repositories() {
     log "SUCCESS" "Processed all repositories"
 }
 
-# Generate VS Code workspace configuration
+# Copy VS Code workspace from stored template
 generate_vscode_workspace() {
     local repo_data="$1"
     local dry_run="${2:-false}"
     
     if [[ "$dry_run" == "true" ]]; then
-        log "DRY_RUN" "Would generate VS Code workspace configuration: $WORKSPACE_CONFIG_FILE"
+        log "DRY_RUN" "Would copy VS Code workspace from template: $WORKSPACE_CONFIG_FILE"
         return 0
     fi
     
-    log "INFO" "Generating VS Code workspace configuration"
+    log "INFO" "Copying VS Code workspace from template"
     
-    local workspace_folders=()
-    local repo_list
-    repo_list=$(parse_repo_structure "$repo_data")
+    local workspace_template="$WORKSPACE_DIR/shared/mob-infra-cicd/workspace/infrastructure-workspace.code-workspace"
     
-    # Add shared repositories first
-    while IFS='|' read -r repo_name team environment resource type; do
-        [[ -z "$repo_name" ]] && continue
-        
-        if [[ "$type" == "exception" ]]; then
-            local relative_path="./shared/$repo_name"
-            workspace_folders+=("$(cat << EOF
-        {
-            "name": "$repo_name",
-            "path": "$relative_path"
-        }
-EOF
-)")
-        fi
-    done <<< "$repo_list"
-    
-    # Add team repositories organized by team/environment
-    local processed_paths=()
-    while IFS='|' read -r repo_name team environment resource type; do
-        [[ -z "$repo_name" ]] && continue
-        [[ "$type" == "exception" ]] && continue
-        
-        local relative_path="./teams/$team/$environment/$resource"
-        
-        # Avoid duplicates
-        local path_exists=false
-        for processed_path in "${processed_paths[@]}"; do
-            if [[ "$processed_path" == "$relative_path" ]]; then
-                path_exists=true
-                break
-            fi
-        done
-        
-        if [[ "$path_exists" == "false" ]]; then
-            processed_paths+=("$relative_path")
-            workspace_folders+=("$(cat << EOF
-        {
-            "name": "$team/$environment/$resource",
-            "path": "$relative_path"
-        }
-EOF
-)")
-        fi
-    done <<< "$repo_list"
-    
-    # Create workspace configuration
-    cat > "$WORKSPACE_CONFIG_FILE" << EOF
-{
-    "folders": [
-$(IFS=$',\n'; echo "${workspace_folders[*]}")
-    ],
-    "settings": {
-        "terraform.experimentalFeatures.validateOnSave": true,
-        "terraform.experimentalFeatures.prefillRequiredFields": true,
-        "files.associations": {
-            "*.tf": "terraform",
-            "*.tfvars": "terraform"
-        },
-        "editor.formatOnSave": true,
-        "files.trimTrailingWhitespace": true,
-        "files.insertFinalNewline": true,
-        "search.exclude": {
-            "**/.terraform": true,
-            "**/node_modules": true,
-            "**/.git": true
-        },
-        "files.watcherExclude": {
-            "**/.terraform/**": true
-        }
-    },
-    "extensions": {
-        "recommendations": [
-            "hashicorp.terraform",
-            "ms-vscode.vscode-json",
-            "redhat.vscode-yaml",
-            "ms-python.python",
-            "timonwong.shellcheck"
-        ]
-    }
-}
-EOF
+    if [[ -f "$workspace_template" ]]; then
+        cp "$workspace_template" "$WORKSPACE_CONFIG_FILE"
+        log "SUCCESS" "Workspace copied from template"
+    else
+        log "ERROR" "Workspace template not found: $workspace_template"
+        return 1
+    fi
     
     log "SUCCESS" "VS Code workspace configuration generated: $WORKSPACE_CONFIG_FILE"
 }
