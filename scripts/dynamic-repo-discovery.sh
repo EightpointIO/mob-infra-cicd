@@ -114,9 +114,17 @@ check_github_auth() {
         exit 1
     fi
     
+    # Determine authentication header based on token format
+    local auth_header
+    if [[ "$GITHUB_TOKEN" =~ ^github_pat_ ]]; then
+        auth_header="Authorization: Bearer $GITHUB_TOKEN"
+    else
+        auth_header="Authorization: token $GITHUB_TOKEN"
+    fi
+    
     # Test GitHub API access
     local response
-    response=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
+    response=$(curl -s -H "$auth_header" \
                    -H "Accept: application/vnd.github.v3+json" \
                    "https://api.github.com/user" 2>/dev/null || echo "error")
     
@@ -134,8 +142,16 @@ check_github_auth() {
 
 # Check rate limiting
 check_rate_limit() {
+    # Determine authentication header based on token format
+    local auth_header
+    if [[ "$GITHUB_TOKEN" =~ ^github_pat_ ]]; then
+        auth_header="Authorization: Bearer $GITHUB_TOKEN"
+    else
+        auth_header="Authorization: token $GITHUB_TOKEN"
+    fi
+    
     local response
-    response=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
+    response=$(curl -s -H "$auth_header" \
                    -H "Accept: application/vnd.github.v3+json" \
                    "https://api.github.com/rate_limit")
     
@@ -183,8 +199,16 @@ fetch_repositories() {
     while true; do
         show_progress $((page-1)) 10 "Fetching repositories (page $page)"
         
+        # Determine authentication header based on token format
+        local auth_header
+        if [[ "$GITHUB_TOKEN" =~ ^github_pat_ ]]; then
+            auth_header="Authorization: Bearer $GITHUB_TOKEN"
+        else
+            auth_header="Authorization: token $GITHUB_TOKEN"
+        fi
+        
         local response
-        response=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
+        response=$(curl -s -H "$auth_header" \
                        -H "Accept: application/vnd.github.v3+json" \
                        "https://api.github.com/orgs/$org/repos?type=all&sort=updated&per_page=$MAX_PER_PAGE&page=$page")
         
