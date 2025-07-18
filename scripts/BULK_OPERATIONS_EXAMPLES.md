@@ -22,8 +22,8 @@ chmod +x scripts/bulk-operations.sh
 
 # Example output:
 # Found 3 Git repositories
-# Repository: mob-infrastructure-cicd - Clean working directory
-# Repository: mob-infrastructure-core - Untracked: TEST.md
+# Repository: mob-infra-cicd - Clean working directory
+# Repository: mob-infra-core - Untracked: TEST.md
 # Repository: network - Modified: README.md
 ```
 

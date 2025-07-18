@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Terraform Helper Functions for Infrastructure CI/CD
-# Used by mob-infrastructure-cicd workflows
+# Used by mob-infra-cicd workflows
 
 set -euo pipefail
 

@@ -31,7 +31,7 @@ readonly CACHE_EXPIRY_HOURS=1
 readonly MAX_PER_PAGE=100
 readonly SUPPORTED_TEAMS=("ios" "android")
 readonly SUPPORTED_ENVIRONMENTS=("dev" "prod" "global")
-readonly EXCEPTION_REPOS=("mob-infrastructure-cicd" "mob-infrastructure-core")
+readonly EXCEPTION_REPOS=("mob-infra-cicd" "mob-infra-core")
 
 # Usage information
 usage() {
@@ -287,10 +287,10 @@ parse_repo_info() {
     local team="" env="" resource=""
     
     # Handle exception repositories
-    if [[ "$repo" == "mob-infrastructure-cicd" ]]; then
+    if [[ "$repo" == "mob-infra-cicd" ]]; then
         echo '{"name":"'$repo'","team":"shared","environment":"global","resource":"cicd","type":"exception"}'
         return
-    elif [[ "$repo" == "mob-infrastructure-core" ]]; then
+    elif [[ "$repo" == "mob-infra-core" ]]; then
         echo '{"name":"'$repo'","team":"shared","environment":"global","resource":"core","type":"exception"}'
         return
     fi

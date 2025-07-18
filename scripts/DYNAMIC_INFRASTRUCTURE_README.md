@@ -158,8 +158,8 @@ infrastructure-workspace/
 │       ├── prod/
 │       └── global/
 └── shared/
-    ├── mob-infrastructure-cicd/
-    └── mob-infrastructure-core/
+    ├── mob-infra-cicd/
+    └── mob-infra-core/
 ```
 
 ## 🎨 Repository Naming Convention
@@ -180,8 +180,8 @@ mob-infrastructure-{type}
 ```
 
 **Examples:**
-- `mob-infrastructure-cicd`
-- `mob-infrastructure-core`
+- `mob-infra-cicd`
+- `mob-infra-core`
 
 ### Supported Values
 

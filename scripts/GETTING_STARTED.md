@@ -3,7 +3,7 @@
 ## 📍 Location
 All infrastructure management scripts are now located in:
 ```
-shared/mob-infrastructure-cicd/scripts/
+shared/mob-infra-cicd/scripts/
 ```
 
 ## 🎯 Quick Start for Developers
@@ -11,7 +11,7 @@ shared/mob-infrastructure-cicd/scripts/
 ### 1. **One-Click Infrastructure Management**
 ```bash
 # From infrastructure root directory
-./shared/mob-infrastructure-cicd/scripts/infrastructure-manager.sh
+./shared/mob-infra-cicd/scripts/infrastructure-manager.sh
 ```
 
 ### 2. **Dynamic Repository Setup (Recommended!)**
@@ -20,33 +20,33 @@ shared/mob-infrastructure-cicd/scripts/
 export GITHUB_TOKEN='your_github_token'
 
 # Dynamic setup - discovers all repos automatically using GitHub API
-./shared/mob-infrastructure-cicd/scripts/setup-workspace-dynamic.sh
+./shared/mob-infra-cicd/scripts/setup-workspace-dynamic.sh
 ```
 
 ### 3. **Create New Infrastructure Resources**
 ```bash
 # Interactive mode - just follow the prompts!
-./shared/mob-infrastructure-cicd/scripts/create-infrastructure-resource.sh
+./shared/mob-infra-cicd/scripts/create-infrastructure-resource.sh
 
 # Command line mode
-./shared/mob-infrastructure-cicd/scripts/create-infrastructure-resource.sh -t ios -e dev -r monitoring
+./shared/mob-infra-cicd/scripts/create-infrastructure-resource.sh -t ios -e dev -r monitoring
 ```
 
 ## 🔧 Daily Workflow Commands
 
 ### Quick Health Check
 ```bash
-./shared/mob-infrastructure-cicd/scripts/infrastructure-manager.sh --health
+./shared/mob-infra-cicd/scripts/infrastructure-manager.sh --health
 ```
 
 ### Daily Maintenance
 ```bash
-./shared/mob-infrastructure-cicd/scripts/infrastructure-manager.sh --daily
+./shared/mob-infra-cicd/scripts/infrastructure-manager.sh --daily
 ```
 
 ### Weekly Reports
 ```bash
-./shared/mob-infrastructure-cicd/scripts/infrastructure-manager.sh --weekly
+./shared/mob-infra-cicd/scripts/infrastructure-manager.sh --weekly
 ```
 
 ## 📋 Available Scripts
@@ -74,8 +74,8 @@ The scripts automatically handle our naming convention:
 - ✅ `ios-infra-global-route53`
 
 ### Exceptions
-- ✅ `mob-infrastructure-cicd` (this repository!)
-- ✅ `mob-infrastructure-core`
+- ✅ `mob-infra-cicd` (this repository!)
+- ✅ `mob-infra-core`
 
 ## 🔑 Setup Requirements
 
@@ -102,7 +102,7 @@ ssh-keygen -t ed25519 -C "your_email@example.com"
 ### Complete Setup (Run Once)
 ```bash
 # 1. Clone this repository
-git clone https://github.com/EightpointIO/mob-infrastructure-cicd.git
+git clone https://github.com/EightpointIO/mob-infra-cicd.git
 
 # 2. Set up environment
 export GITHUB_TOKEN='your_token'
@@ -135,13 +135,13 @@ Each script has comprehensive documentation:
 ```yaml
 # .github/workflows/infrastructure-check.yml
 - name: Infrastructure Health Check
-  run: ./shared/mob-infrastructure-cicd/scripts/infrastructure-manager.sh --health
+  run: ./shared/mob-infra-cicd/scripts/infrastructure-manager.sh --health
 ```
 
 ### Daily Cron Job
 ```bash
 # Add to crontab for daily maintenance
-0 9 * * * cd /path/to/infrastructure && ./shared/mob-infrastructure-cicd/scripts/infrastructure-manager.sh --daily
+0 9 * * * cd /path/to/infrastructure && ./shared/mob-infra-cicd/scripts/infrastructure-manager.sh --daily
 ```
 
 ## 🆘 Support

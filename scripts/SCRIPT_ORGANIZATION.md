@@ -25,8 +25,8 @@
 - ❌ `commit_all_repos.sh` - functionality integrated into bulk-operations.sh
 - ❌ `cleanup_terraform_files.sh` - functionality integrated into maintenance-check.sh
 - ❌ `check_git_status.sh` - functionality integrated into health-reporter.sh
-- ❌ `shared/mob-infrastructure-cicd/setup-workspace.sh` - replaced by dynamic version
-- ❌ `shared/mob-infrastructure-cicd/scripts/setup-workspace-enhanced.sh` - was redundant
+- ❌ `shared/mob-infra-cicd/setup-workspace.sh` - replaced by dynamic version
+- ❌ `shared/mob-infra-cicd/scripts/setup-workspace-enhanced.sh` - was redundant
 
 ### **Fixed Git Repository Issues**
 - ✅ Removed runtime directories from git tracking: `logs/`, `temp/`, `reports/`, `backups/`
@@ -38,28 +38,28 @@
 ### **For New Developers**
 ```bash
 # One-time complete setup
-./shared/mob-infrastructure-cicd/scripts/infrastructure-manager.sh --setup
+./shared/mob-infra-cicd/scripts/infrastructure-manager.sh --setup
 ```
 
 ### **Daily Operations**
 ```bash
 # Interactive menu for all operations  
-./shared/mob-infrastructure-cicd/scripts/infrastructure-manager.sh
+./shared/mob-infra-cicd/scripts/infrastructure-manager.sh
 
 # Quick health check
-./shared/mob-infrastructure-cicd/scripts/infrastructure-manager.sh --health
+./shared/mob-infra-cicd/scripts/infrastructure-manager.sh --health
 ```
 
 ### **Repository Management**
 ```bash
 # Update all repositories dynamically
-./shared/mob-infrastructure-cicd/scripts/setup-workspace-dynamic.sh
+./shared/mob-infra-cicd/scripts/setup-workspace-dynamic.sh
 ```
 
 ## 📁 Directory Structure
 
 ```
-shared/mob-infrastructure-cicd/scripts/
+shared/mob-infra-cicd/scripts/
 ├── infrastructure-manager.sh          # 🎯 MAIN ORCHESTRATOR
 ├── setup-workspace-dynamic.sh         # Repository setup (GitHub API)
 ├── create-infrastructure-resource.sh  # Create new resources

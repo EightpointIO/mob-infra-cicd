@@ -120,7 +120,7 @@ CONFIGURATION:
         AUTO_VALIDATE=true
         EXCLUDED_PATHS=("**/test/**" "**/examples/**")
         GITHUB_ORG=EightpointIO
-        MODULE_REPOS=("mob-infrastructure-core" "mob-infrastructure-cicd")
+        MODULE_REPOS=("mob-infra-core" "mob-infra-cicd")
 
 EOF
 }
@@ -142,7 +142,7 @@ load_config() {
     AUTO_VALIDATE="${AUTO_VALIDATE:-true}"
     GITHUB_ORG="${GITHUB_ORG:-EightpointIO}"
     EXCLUDED_PATHS="${EXCLUDED_PATHS:-()}"
-    MODULE_REPOS="${MODULE_REPOS:-(mob-infrastructure-core mob-infrastructure-cicd)}"
+    MODULE_REPOS="${MODULE_REPOS:-(mob-infra-core mob-infra-cicd)}"
 }
 
 check_prerequisites() {

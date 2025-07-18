@@ -61,13 +61,13 @@ provider "aws" {
 }
 
 module "network" {
-  source = "git::https://github.com/EightpointIO/mob-infrastructure-core.git//modules/network?ref=v1.0.0"
+  source = "git::https://github.com/EightpointIO/mob-infra-core.git//modules/network?ref=v1.0.0"
   
   vpc_cidr = "10.0.0.0/16"
 }
 
 module "data_stores" {
-  source = "git::https://github.com/EightpointIO/mob-infrastructure-core.git//modules/data-stores?ref=v0.9.0"
+  source = "git::https://github.com/EightpointIO/mob-infra-core.git//modules/data-stores?ref=v0.9.0"
   
   database_name = "test"
 }

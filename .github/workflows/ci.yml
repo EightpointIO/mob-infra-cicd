@@ -126,7 +126,7 @@ jobs:
           REPO_NAME="${GITHUB_REPOSITORY##*/}"
           
           # Handle special cases first
-          if [[ "$REPO_NAME" == "mob-infrastructure-core" ]] || [[ "$REPO_NAME" == "mob-infrastructure-cicd" ]]; then
+          if [[ "$REPO_NAME" == "mob-infra-core" ]] || [[ "$REPO_NAME" == "mob-infra-cicd" ]]; then
             echo "Infrastructure core repo - no restructuring needed"
             echo "target_dir=." >> $GITHUB_OUTPUT
             exit 0
@@ -370,7 +370,7 @@ jobs:
           REPO_NAME="${GITHUB_REPOSITORY##*/}"
           
           # Handle special cases first
-          if [[ "$REPO_NAME" == "mob-infrastructure-core" ]] || [[ "$REPO_NAME" == "mob-infrastructure-cicd" ]]; then
+          if [[ "$REPO_NAME" == "mob-infra-core" ]] || [[ "$REPO_NAME" == "mob-infra-cicd" ]]; then
             echo "Infrastructure core repo - no restructuring needed"
             echo "target_dir=." >> $GITHUB_OUTPUT
             exit 0
@@ -489,7 +489,7 @@ jobs:
           REPO_NAME="${GITHUB_REPOSITORY##*/}"
           
           # Handle special cases first
-          if [[ "$REPO_NAME" == "mob-infrastructure-core" ]] || [[ "$REPO_NAME" == "mob-infrastructure-cicd" ]]; then
+          if [[ "$REPO_NAME" == "mob-infra-core" ]] || [[ "$REPO_NAME" == "mob-infra-cicd" ]]; then
             echo "Infrastructure core repo - no restructuring needed"
             echo "target_dir=." >> $GITHUB_OUTPUT
             exit 0
@@ -609,7 +609,7 @@ jobs:
           REPO_NAME="${GITHUB_REPOSITORY##*/}"
           
           # Handle special cases first
-          if [[ "$REPO_NAME" == "mob-infrastructure-core" ]] || [[ "$REPO_NAME" == "mob-infrastructure-cicd" ]]; then
+          if [[ "$REPO_NAME" == "mob-infra-core" ]] || [[ "$REPO_NAME" == "mob-infra-cicd" ]]; then
             echo "Infrastructure core repo - no restructuring needed"
             echo "target_dir=." >> $GITHUB_OUTPUT
             exit 0

@@ -1,6 +1,6 @@
 """
 Custom Checkov Security Policies for Mobile Infrastructure
-Used by mob-infrastructure-cicd workflows
+Used by mob-infra-cicd workflows
 
 These policies extend the default Checkov checks with organization-specific
 security requirements and best practices.

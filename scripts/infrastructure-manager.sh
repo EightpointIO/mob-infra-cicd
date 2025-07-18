@@ -42,7 +42,7 @@ readonly LIGHTNING="⚡"
 
 # Configuration
 readonly SCRIPT_DIR="$(cd "$(dirname "${(%):-%N}")" && pwd)"
-# Calculate infrastructure root: /path/to/infrastructure/shared/mob-infrastructure-cicd/scripts -> /path/to/infrastructure
+# Calculate infrastructure root: /path/to/infrastructure/shared/mob-infra-cicd/scripts -> /path/to/infrastructure
 readonly PROJECT_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 readonly LOGS_DIR="${SCRIPT_DIR}/logs"
 readonly REPORTS_DIR="${PROJECT_ROOT}/reports"

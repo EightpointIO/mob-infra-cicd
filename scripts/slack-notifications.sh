@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Slack Notification Helper Functions for Infrastructure CI/CD
-# Used by mob-infrastructure-cicd workflows
+# Used by mob-infra-cicd workflows
 
 set -euo pipefail
 
@@ -421,7 +421,7 @@ test_slack_webhook() {
     
     log_info "Testing Slack webhook connectivity"
     
-    local test_message="🧪 Test message from mob-infrastructure-cicd pipeline"
+    local test_message="🧪 Test message from mob-infra-cicd pipeline"
     
     if send_slack_notification "$webhook_url" "$test_message" "TestBot" ":test_tube:" "$channel"; then
         log_success "Slack webhook test successful"

@@ -9,7 +9,7 @@ This repository follows the same centralized pattern as `ios-api-cicd`, providin
 ## Repository Structure
 
 ```
-mob-infrastructure-cicd/
+mob-infra-cicd/
 ├── .github/
 │   └── workflows/
 │       └── ci.yml                   # Main centralized workflow
@@ -48,7 +48,7 @@ permissions:
 
 jobs:
   call_central_ci:
-    uses: EightpointIO/mob-infrastructure-cicd/.github/workflows/ci.yml@main
+    uses: EightpointIO/mob-infra-cicd/.github/workflows/ci.yml@main
     with:
       OUR_PROJECT_NAME: "service-name"
       TEAM_NAME: "ios"  # or "android"
@@ -110,7 +110,7 @@ Supported environments:
 
 ### iOS Development Secrets
 ```yaml
-uses: EightpointIO/mob-infrastructure-cicd/.github/workflows/ci.yml@main
+uses: EightpointIO/mob-infra-cicd/.github/workflows/ci.yml@main
 with:
   OUR_PROJECT_NAME: "secrets"
   TEAM_NAME: "ios"
@@ -119,7 +119,7 @@ with:
 
 ### Android Production EKS
 ```yaml
-uses: EightpointIO/mob-infrastructure-cicd/.github/workflows/ci.yml@main
+uses: EightpointIO/mob-infra-cicd/.github/workflows/ci.yml@main
 with:
   OUR_PROJECT_NAME: "eks"
   TEAM_NAME: "android"
