@@ -10,9 +10,9 @@
       },
       "github_team": "ios",
       "aws_account_roles": {
-        "dev": "arn:aws:iam::ACCOUNT_ID:role/GitHubActions-iOS-Dev",
-        "prod": "arn:aws:iam::ACCOUNT_ID:role/GitHubActions-iOS-Prod",
-        "global": "arn:aws:iam::ACCOUNT_ID:role/GitHubActions-iOS-Global"
+        "dev": "arn:aws:iam::ACCOUNT_ID:role/githubactions-ios-dev",
+        "prod": "arn:aws:iam::ACCOUNT_ID:role/githubactions-ios-prod",
+        "global": "arn:aws:iam::ACCOUNT_ID:role/githubactions-ios-global"
       },
       "terraform_state_buckets": {
         "dev": "ios-dev-terraform-state",
