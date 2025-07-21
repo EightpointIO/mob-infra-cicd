@@ -16,11 +16,13 @@ readonly PURPLE='\033[0;35m'
 readonly CYAN='\033[0;36m'
 readonly WHITE='\033[1;37m'
 readonly BOLD='\033[1m'
+readonly DIM='\033[2m'
 readonly NC='\033[0m' # No Color
 
 # Configuration
 readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-readonly PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+# Calculate infrastructure root: /path/to/infrastructure/shared/mob-infra-cicd/scripts -> /path/to/infrastructure
+readonly PROJECT_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 readonly LOG_DIR="${SCRIPT_DIR}/logs"
 readonly BACKUP_DIR="${SCRIPT_DIR}/backups"
 readonly TEMP_DIR="${SCRIPT_DIR}/temp"
@@ -984,6 +986,328 @@ bulk_dependency_update() {
 }
 
 # ============================================
+# GIT REFERENCE MANAGEMENT
+# ============================================
+
+# Find all Terraform files with git references
+find_terraform_git_references() {
+    find "$PROJECT_ROOT" -name "*.tf" -type f -exec grep -l "git::" {} \; | grep -v ".terraform" | sort
+}
+
+# Update all git references to a new version
+bulk_update_git_references() {
+    local target_version="$1"
+    local filter_repo="${2:-}"
+    
+    if [[ -z "$target_version" ]]; then
+        print_error "Target version is required (e.g., v1.0.6)"
+        return 1
+    fi
+    
+    print_section "Bulk Git Reference Update to $target_version"
+    
+    local tf_files=($(find_terraform_git_references))
+    local total=${#tf_files[@]}
+    local updated_count=0
+    
+    if [[ $total -eq 0 ]]; then
+        print_warning "No Terraform files with git references found"
+        return 0
+    fi
+    
+    print_info "Found $total Terraform files with git references"
+    
+    if [[ -n "$filter_repo" ]]; then
+        print_info "Filtering for repository: $filter_repo"
+    fi
+    
+    for file in "${tf_files[@]}"; do
+        wait_for_job_slot
+        
+        local relative_path="${file#$PROJECT_ROOT/}"
+        
+        (
+            print_progress "Processing: $relative_path"
+            
+            # Create backup
+            create_backup "git-ref-update" "$(dirname "$file")"
+            
+            local temp_file="${file}.tmp"
+            local changes_made=false
+            
+            # Process git references
+            if [[ -n "$filter_repo" ]]; then
+                # Filter by specific repository
+                if sed -E "s/(git::.*github\.com\/[^\/]*\/${filter_repo}\.git[^?]*\?ref=)[^\"&]*/\1${target_version}/g" "$file" > "$temp_file"; then
+                    if ! diff -q "$file" "$temp_file" >/dev/null 2>&1; then
+                        changes_made=true
+                    fi
+                fi
+            else
+                # Update all git references
+                if sed -E 's/(git::.*github\.com\/[^\/]*\/[^\/]*\.git[^?]*\?ref=)[^"&]*/\1'$target_version'/g' "$file" > "$temp_file"; then
+                    if ! diff -q "$file" "$temp_file" >/dev/null 2>&1; then
+                        changes_made=true
+                    fi
+                fi
+            fi
+            
+            if [[ "$changes_made" == true ]]; then
+                mv "$temp_file" "$file"
+                print_success "$relative_path: Updated git references to $target_version"
+                echo "1" > "${STATUS_DIR}/updated-${RANDOM}.count"
+            else
+                rm -f "$temp_file"
+                print_info "$relative_path: No matching references found"
+            fi
+            
+        ) &
+        
+        local pid=$!
+        add_operation_pid "$pid" "git-ref-update-$(basename "$file")"
+    done
+    
+    wait_for_all_jobs
+    
+    # Count updates
+    updated_count=$(find "${STATUS_DIR}" -name "updated-*.count" 2>/dev/null | wc -l || echo "0")
+    rm -f "${STATUS_DIR}"/updated-*.count 2>/dev/null
+    
+    print_success "Git reference update completed: $updated_count files updated"
+}
+
+# Standardize repository names from old to new
+bulk_standardize_repo_names() {
+    local old_name="${1:-mob-infrastructure-core}"
+    local new_name="${2:-mob-infra-core}"
+    
+    print_section "Standardizing Repository Names: $old_name → $new_name"
+    
+    local tf_files=($(find_terraform_git_references))
+    local total=${#tf_files[@]}
+    local updated_count=0
+    
+    if [[ $total -eq 0 ]]; then
+        print_warning "No Terraform files with git references found"
+        return 0
+    fi
+    
+    print_info "Found $total Terraform files with git references"
+    print_info "Updating: $old_name → $new_name"
+    
+    for file in "${tf_files[@]}"; do
+        wait_for_job_slot
+        
+        local relative_path="${file#$PROJECT_ROOT/}"
+        
+        (
+            print_progress "Processing: $relative_path"
+            
+            # Create backup
+            create_backup "repo-name-update" "$(dirname "$file")"
+            
+            local temp_file="${file}.tmp"
+            local changes_made=false
+            
+            # Update repository names
+            if sed "s|github\.com/[^/]*/${old_name}\.git|github.com/EightpointIO/${new_name}.git|g" "$file" > "$temp_file"; then
+                if ! diff -q "$file" "$temp_file" >/dev/null 2>&1; then
+                    changes_made=true
+                fi
+            fi
+            
+            if [[ "$changes_made" == true ]]; then
+                mv "$temp_file" "$file"
+                print_success "$relative_path: Updated repository name"
+                echo "1" > "${STATUS_DIR}/repo-updated-${RANDOM}.count"
+            else
+                rm -f "$temp_file"
+                print_info "$relative_path: No repository name changes needed"
+            fi
+            
+        ) &
+        
+        local pid=$!
+        add_operation_pid "$pid" "repo-name-update-$(basename "$file")"
+    done
+    
+    wait_for_all_jobs
+    
+    # Count updates
+    updated_count=$(find "${STATUS_DIR}" -name "repo-updated-*.count" 2>/dev/null | wc -l || echo "0")
+    rm -f "${STATUS_DIR}"/repo-updated-*.count 2>/dev/null
+    
+    print_success "Repository name standardization completed: $updated_count files updated"
+}
+
+# Detect latest git tag from repository
+detect_latest_git_tag() {
+    local repo_url="$1"
+    local repo_name="$2"
+    
+    print_info "Detecting latest tag for $repo_name..."
+    
+    # Try to get latest tag from GitHub API first
+    if command -v curl >/dev/null 2>&1; then
+        local api_url="https://api.github.com/repos/EightpointIO/${repo_name}/releases/latest"
+        local latest_tag=$(curl -s "$api_url" | grep '"tag_name":' | cut -d'"' -f4 2>/dev/null || echo "")
+        
+        if [[ -n "$latest_tag" ]]; then
+            echo "$latest_tag"
+            return 0
+        fi
+    fi
+    
+    # Fallback: clone and get latest tag
+    local temp_clone_dir="${TEMP_DIR}/clone-${repo_name}-${RANDOM}"
+    mkdir -p "$temp_clone_dir"
+    
+    if git clone --depth 1 "$repo_url" "$temp_clone_dir" >/dev/null 2>&1; then
+        cd "$temp_clone_dir"
+        local latest_tag=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+        cd - >/dev/null
+        rm -rf "$temp_clone_dir"
+        
+        if [[ -n "$latest_tag" ]]; then
+            echo "$latest_tag"
+            return 0
+        fi
+    fi
+    
+    print_warning "Could not detect latest tag for $repo_name"
+    return 1
+}
+
+# Drift detection and update
+bulk_drift_detection() {
+    local repo_name="${1:-mob-infra-core}"
+    local repo_url="https://github.com/EightpointIO/${repo_name}.git"
+    
+    print_section "Git Reference Drift Detection for $repo_name"
+    
+    # Detect latest tag
+    local latest_tag=$(detect_latest_git_tag "$repo_url" "$repo_name")
+    
+    if [[ -z "$latest_tag" ]]; then
+        print_error "Could not detect latest tag for $repo_name"
+        return 1
+    fi
+    
+    print_success "Latest tag detected: $latest_tag"
+    
+    # Find current references and count outdated ones
+    print_info "Scanning for current git references..."
+    
+    local tf_files=($(find_terraform_git_references))
+    local outdated_count=0
+    local refs_file="${TEMP_DIR}/outdated_refs_${RANDOM}.txt"
+    
+    for file in "${tf_files[@]}"; do
+        local relative_path="${file#$PROJECT_ROOT/}"
+        
+        # Check this file for outdated references to the target repo
+        grep -n "git::.*github\.com/[^/]*/${repo_name}\.git" "$file" 2>/dev/null | while IFS= read -r line; do
+            local current_ref=$(echo "$line" | sed -n 's/.*?ref=\([^"]*\).*/\1/p')
+            if [[ -n "$current_ref" && "$current_ref" != "$latest_tag" ]]; then
+                echo "$relative_path:$current_ref" >> "$refs_file"
+            fi
+        done
+    done
+    
+    if [[ -f "$refs_file" ]]; then
+        outdated_count=$(wc -l < "$refs_file" 2>/dev/null || echo "0")
+    fi
+    
+    if [[ $outdated_count -eq 0 ]]; then
+        print_success "All references are up to date with $latest_tag"
+        rm -f "$refs_file"
+        return 0
+    fi
+    
+    print_warning "Found $outdated_count outdated references for $repo_name"
+    echo -e "\n${YELLOW}Outdated references:${NC}"
+    
+    if [[ -f "$refs_file" ]]; then
+        while IFS= read -r ref_info; do
+            local file_path=$(echo "$ref_info" | cut -d: -f1)
+            local old_ref=$(echo "$ref_info" | cut -d: -f2)
+            echo -e "  ${RED}$file_path${NC}: $old_ref → $latest_tag"
+        done < "$refs_file"
+        rm -f "$refs_file"
+    fi
+    
+    echo -e "\n${BLUE}Would you like to update all references to $latest_tag? (y/N):${NC}"
+    read -r update_choice
+    
+    if [[ "$update_choice" =~ ^[Yy]$ ]]; then
+        bulk_update_git_references "$latest_tag" "$repo_name"
+    else
+        print_info "Drift detection completed. No updates applied."
+    fi
+}
+
+# Show git reference summary
+show_git_reference_summary() {
+    print_section "Git Reference Summary"
+    
+    local tf_files=($(find_terraform_git_references))
+    local total=${#tf_files[@]}
+    
+    if [[ $total -eq 0 ]]; then
+        print_warning "No Terraform files with git references found"
+        return 0
+    fi
+    
+    print_info "Analyzing $total Terraform files..."
+    
+    # Create temporary file to collect references
+    local refs_file="${TEMP_DIR}/git_refs_summary_${RANDOM}.txt"
+    
+    # Collect all references from all files
+    for file in "${tf_files[@]}"; do
+        local relative_path="${file#$PROJECT_ROOT/}"
+        
+        # Extract git references from this file
+        grep -n "git::" "$file" 2>/dev/null | while IFS= read -r line; do
+            local line_content=$(echo "$line" | cut -d: -f2-)
+            local current_ref=$(echo "$line_content" | sed -n 's/.*?ref=\([^"]*\).*/\1/p')
+            local repo_name=$(echo "$line_content" | sed -n 's/.*github\.com\/[^/]*\/\([^/]*\)\.git.*/\1/p')
+            
+            if [[ -n "$repo_name" && -n "$current_ref" ]]; then
+                echo "${repo_name}:${current_ref}:${relative_path}" >> "$refs_file"
+            fi
+        done
+    done
+    
+    if [[ ! -f "$refs_file" ]] || [[ ! -s "$refs_file" ]]; then
+        print_warning "No git references found in Terraform files"
+        return 0
+    fi
+    
+    # Display summary
+    echo -e "\n${WHITE}${BOLD}Repository Reference Summary:${NC}"
+    
+    # Sort and count unique repository:version combinations
+    sort "$refs_file" | uniq -c | while read -r count repo_version_file; do
+        local repo=$(echo "$repo_version_file" | cut -d: -f1)
+        local version=$(echo "$repo_version_file" | cut -d: -f2)
+        local sample_file=$(echo "$repo_version_file" | cut -d: -f3)
+        
+        echo -e "\n${CYAN}$repo${NC} @ ${YELLOW}$version${NC} (${count} references)"
+        echo -e "  ${DIM}Example: $sample_file${NC}"
+        
+        if [[ $count -gt 1 ]]; then
+            echo -e "  ${DIM}... and $((count - 1)) more files${NC}"
+        fi
+    done
+    
+    # Clean up
+    rm -f "$refs_file"
+    
+    print_success "Git reference summary completed"
+}
+
+# ============================================
 # ROLLBACK FUNCTIONALITY
 # ============================================
 
@@ -1109,6 +1433,12 @@ show_help() {
     echo -e "  deps-update             Update dependencies in all projects"
     echo -e "  deps-audit              Audit dependencies for vulnerabilities"
     echo
+    echo -e "${CYAN}Git Reference Operations:${NC}"
+    echo -e "  git-ref-summary         Show summary of all git references and versions"
+    echo -e "  git-ref-update VERSION  Update all git references to specified version (e.g., v1.0.6)"
+    echo -e "  git-ref-drift           Detect and optionally update outdated git references"
+    echo -e "  git-ref-standardize     Standardize repository names (mob-infrastructure-core → mob-infra-core)"
+    echo
     echo -e "${CYAN}Bulk Operations:${NC}"
     echo -e "  all                     Run all operations (git, terraform, security, deps)"
     echo -e "  maintenance             Run maintenance tasks (format, validate, security)"
@@ -1125,6 +1455,10 @@ show_help() {
     echo -e "  $0 git-status                    # Check status of all repos"
     echo -e "  $0 git-all \"Update dependencies\" # Full git workflow"
     echo -e "  $0 tf-all                        # Format, validate, plan all TF"
+    echo -e "  $0 git-ref-summary               # Show git reference versions"
+    echo -e "  $0 git-ref-update v1.0.6         # Update all refs to v1.0.6"
+    echo -e "  $0 git-ref-drift                 # Check for outdated references"
+    echo -e "  $0 git-ref-standardize           # Update repo names"
     echo -e "  $0 all                           # Run everything"
     echo -e "  $0 maintenance --parallel 4      # Run maintenance with 4 jobs"
 }
@@ -1172,11 +1506,11 @@ main() {
                 show_help
                 exit 0
                 ;;
-            git-status|git-pull|git-push|tf-fmt|tf-validate|tf-plan|security-scan|deps-update|all|maintenance|rollback)
+            git-status|git-pull|git-push|tf-fmt|tf-validate|tf-plan|security-scan|deps-update|git-ref-summary|git-ref-drift|git-ref-standardize|all|maintenance|rollback)
                 operation="$1"
                 shift
                 ;;
-            git-commit|git-all)
+            git-commit|git-all|git-ref-update)
                 operation="$1"
                 if [[ -n "$2" ]] && [[ ! "$2" =~ ^-- ]]; then
                     commit_message="$2"
@@ -1257,6 +1591,18 @@ main() {
             ;;
         "deps-update")
             [[ "$dry_run" == false ]] && bulk_dependency_update || print_info "Would update all dependencies"
+            ;;
+        "git-ref-summary")
+            show_git_reference_summary
+            ;;
+        "git-ref-update")
+            [[ "$dry_run" == false ]] && bulk_update_git_references "$commit_message" || print_info "Would update all git references to: $commit_message"
+            ;;
+        "git-ref-drift")
+            [[ "$dry_run" == false ]] && bulk_drift_detection || print_info "Would check for drift and prompt for updates"
+            ;;
+        "git-ref-standardize")
+            [[ "$dry_run" == false ]] && bulk_standardize_repo_names || print_info "Would standardize repository names"
             ;;
         "maintenance")
             if [[ "$dry_run" == false ]]; then

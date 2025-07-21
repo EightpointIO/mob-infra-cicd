@@ -52,10 +52,10 @@ readonly TIMESTAMP="$(date +%Y%m%d-%H%M%S)"
 readonly SESSION_LOG="${LOGS_DIR}/infrastructure-manager-${TIMESTAMP}.log"
 
 # Script paths
-readonly MAINTENANCE_SCRIPT="${SCRIPT_DIR}/maintenance-check.sh"
-readonly HEALTH_REPORTER_SCRIPT="${SCRIPT_DIR}/health-reporter.sh"
-readonly COMPLIANCE_SCRIPT="${SCRIPT_DIR}/compliance-checker.sh"
-readonly DEPENDENCY_SCRIPT="${SCRIPT_DIR}/dependency-updater.sh"
+readonly MAINTENANCE_SCRIPT="${SCRIPT_DIR}/core/maintenance-check.sh"
+readonly HEALTH_REPORTER_SCRIPT="${SCRIPT_DIR}/core/health-reporter.sh"
+readonly COMPLIANCE_SCRIPT="${SCRIPT_DIR}/core/compliance-checker.sh"
+readonly DEPENDENCY_SCRIPT="${SCRIPT_DIR}/core/dependency-updater.sh"
 readonly BULK_OPERATIONS_SCRIPT="${SCRIPT_DIR}/bulk-operations.sh"
 readonly WORKSPACE_SETUP_SCRIPT="${SCRIPT_DIR}/enhanced-workspace-setup.sh"
 
@@ -286,22 +286,23 @@ show_main_menu() {
     echo -e "  ${GREEN}4.${NC} ${SHIELD} Security & Compliance Check"
     echo -e "  ${GREEN}5.${NC} ${PACKAGE} Update Dependencies"
     echo -e "  ${GREEN}6.${NC} ${LIGHTNING} Bulk Operations"
-    echo -e "  ${GREEN}7.${NC} ${CLIPBOARD} Maintenance Check"
+    echo -e "  ${GREEN}7.${NC} 🔗 Git Reference Management"
+    echo -e "  ${GREEN}8.${NC} ${CLIPBOARD} Maintenance Check"
     
     echo -e "\n${BOLD}Workflow Automation:${NC}"
-    echo -e "  ${PURPLE}8.${NC} ${ROCKET} Complete Setup Workflow"
-    echo -e "  ${PURPLE}9.${NC} ${GEAR} Daily Maintenance Workflow"
-    echo -e "  ${PURPLE}10.${NC} ${CHART} Weekly Report Workflow"
+    echo -e "  ${PURPLE}9.${NC} ${ROCKET} Complete Setup Workflow"
+    echo -e "  ${PURPLE}10.${NC} ${GEAR} Daily Maintenance Workflow"
+    echo -e "  ${PURPLE}11.${NC} ${CHART} Weekly Report Workflow"
     
     echo -e "\n${BOLD}Utilities:${NC}"
-    echo -e "  ${BLUE}11.${NC} 📁 View Recent Reports"
-    echo -e "  ${BLUE}12.${NC} 📈 Session Summary"
-    echo -e "  ${BLUE}13.${NC} 🔧 System Status"
-    echo -e "  ${BLUE}14.${NC} ❓ Help & Examples"
+    echo -e "  ${BLUE}12.${NC} 📁 View Recent Reports"
+    echo -e "  ${BLUE}13.${NC} 📈 Session Summary"
+    echo -e "  ${BLUE}14.${NC} 🔧 System Status"
+    echo -e "  ${BLUE}15.${NC} ❓ Help & Examples"
     
     echo -e "\n  ${RED}0.${NC} Exit"
     
-    echo -e "\n${DIM}Choose an option (0-14):${NC} "
+    echo -e "\n${DIM}Choose an option (0-15):${NC} "
 }
 
 # Individual operation functions
@@ -350,6 +351,49 @@ operation_bulk_operations() {
         4) execute_script "$BULK_OPERATIONS_SCRIPT" "Bulk Operations" "dependency-updates" ;;
         5) execute_script "$BULK_OPERATIONS_SCRIPT" "Bulk Operations" "all" ;;
         *) print_error "Invalid selection" ;;
+    esac
+}
+
+operation_git_reference_management() {
+    print_header "🔗 Git Reference Management"
+    print_info "Manage Terraform git module references across all repositories..."
+    
+    echo -e "\n${BOLD}Available git reference operations:${NC}"
+    echo -e "  ${GREEN}1.${NC} Show reference summary (current versions)"
+    echo -e "  ${GREEN}2.${NC} Update all references to specific version"
+    echo -e "  ${GREEN}3.${NC} Drift detection (check for outdated refs)"
+    echo -e "  ${GREEN}4.${NC} Standardize repository names"
+    echo -e "  ${GREEN}5.${NC} Auto-update mob-infra-core references"
+    
+    echo -e "\n${DIM}Choose git reference operation (1-5):${NC} "
+    read -r git_ref_choice
+    
+    case $git_ref_choice in
+        1) 
+            execute_script "$BULK_OPERATIONS_SCRIPT" "Git Reference Summary" "git-ref-summary"
+            ;;
+        2) 
+            echo -e "\n${BLUE}Enter target version (e.g., v1.0.6):${NC} "
+            read -r target_version
+            if [[ -n "$target_version" ]]; then
+                execute_script "$BULK_OPERATIONS_SCRIPT" "Git Reference Update" "git-ref-update $target_version"
+            else
+                print_error "No version specified"
+            fi
+            ;;
+        3) 
+            execute_script "$BULK_OPERATIONS_SCRIPT" "Git Reference Drift Detection" "git-ref-drift"
+            ;;
+        4) 
+            execute_script "$BULK_OPERATIONS_SCRIPT" "Repository Name Standardization" "git-ref-standardize"
+            ;;
+        5)
+            print_info "Checking for latest mob-infra-core version and updating all references..."
+            execute_script "$BULK_OPERATIONS_SCRIPT" "Auto-update mob-infra-core" "git-ref-drift"
+            ;;
+        *) 
+            print_error "Invalid selection" 
+            ;;
     esac
 }
 
@@ -432,9 +476,11 @@ workflow_complete_setup() {
     local steps=(
         "System Prerequisites Check"
         "Workspace Setup"
+        "Repository Updates"
         "Health Check"
         "Security & Compliance"
         "Dependency Updates"
+        "Git Reference Updates"
         "Final Validation"
     )
     
@@ -452,6 +498,10 @@ workflow_complete_setup() {
             "Workspace Setup")
                 operation_workspace_setup
                 ;;
+            "Repository Updates")
+                print_info "Pulling latest code from all repositories..."
+                execute_script "$BULK_OPERATIONS_SCRIPT" "Repository Updates" "git-pull"
+                ;;
             "Health Check")
                 operation_quick_health
                 ;;
@@ -460,6 +510,10 @@ workflow_complete_setup() {
                 ;;
             "Dependency Updates")
                 operation_update_dependencies
+                ;;
+            "Git Reference Updates")
+                print_info "Checking for outdated git references and updating..."
+                execute_script "$BULK_OPERATIONS_SCRIPT" "Git Reference Drift Detection" "git-ref-drift"
                 ;;
             "Final Validation")
                 operation_comprehensive_health
@@ -680,6 +734,10 @@ show_help() {
     echo -e "  ${CYAN}./scripts/infrastructure-manager.sh${NC} --dependencies    # Update dependencies"
     echo -e "  ${CYAN}./scripts/infrastructure-manager.sh${NC} --maintenance     # Full maintenance check"
     echo -e "  ${CYAN}./scripts/infrastructure-manager.sh${NC} --bulk-format     # Bulk Terraform formatting"
+    echo -e "  ${CYAN}./scripts/infrastructure-manager.sh${NC} --git-refs        # Git reference management menu"
+    echo -e "  ${CYAN}./scripts/infrastructure-manager.sh${NC} --git-ref-summary # Show git reference summary"
+    echo -e "  ${CYAN}./scripts/infrastructure-manager.sh${NC} --git-ref-drift   # Check for outdated references"
+    echo -e "  ${CYAN}./scripts/infrastructure-manager.sh${NC} --git-ref-standardize # Standardize repo names"
     
     echo -e "\n${BOLD}WORKFLOWS:${NC}"
     echo -e "  ${CYAN}./scripts/infrastructure-manager.sh${NC} --setup           # Complete setup workflow"
@@ -859,7 +917,19 @@ handle_cli_args() {
             operation_maintenance_check
             ;;
         --bulk-format)
-            execute_script "$BULK_OPERATIONS_SCRIPT" "Bulk Format" "terraform-format"
+            execute_script "$BULK_OPERATIONS_SCRIPT" "Bulk Format" "tf-fmt"
+            ;;
+        --git-refs|--git-reference)
+            operation_git_reference_management
+            ;;
+        --git-ref-summary)
+            execute_script "$BULK_OPERATIONS_SCRIPT" "Git Reference Summary" "git-ref-summary"
+            ;;
+        --git-ref-drift)
+            execute_script "$BULK_OPERATIONS_SCRIPT" "Git Reference Drift" "git-ref-drift"
+            ;;
+        --git-ref-standardize)
+            execute_script "$BULK_OPERATIONS_SCRIPT" "Repository Standardization" "git-ref-standardize"
             ;;
         --setup)
             workflow_complete_setup
@@ -912,21 +982,22 @@ interactive_mode() {
             4) operation_security_compliance ;;
             5) operation_update_dependencies ;;
             6) operation_bulk_operations ;;
-            7) operation_maintenance_check ;;
-            8) workflow_complete_setup ;;
-            9) workflow_daily_maintenance ;;
-            10) workflow_weekly_report ;;
-            11) view_recent_reports ;;
-            12) session_summary ;;
-            13) system_status ;;
-            14) show_help ;;
+            7) operation_git_reference_management ;;
+            8) operation_maintenance_check ;;
+            9) workflow_complete_setup ;;
+            10) workflow_daily_maintenance ;;
+            11) workflow_weekly_report ;;
+            12) view_recent_reports ;;
+            13) session_summary ;;
+            14) system_status ;;
+            15) show_help ;;
             0)
                 print_info "Thank you for using Infrastructure Manager!"
                 session_summary
                 break
                 ;;
             *)
-                print_error "Invalid choice. Please select 0-14."
+                print_error "Invalid choice. Please select 0-15."
                 sleep 1
                 ;;
         esac
