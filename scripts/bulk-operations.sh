@@ -218,9 +218,11 @@ wait_for_all_jobs() {
         done
         
         # Remove completed PIDs
-        for pid in "${pids_to_remove[@]}"; do
-            remove_operation_pid "$pid"
-        done
+        if [[ ${#pids_to_remove[@]} -gt 0 ]]; then
+            for pid in "${pids_to_remove[@]}"; do
+                remove_operation_pid "$pid"
+            done
+        fi
         
         sleep 0.1
     done
