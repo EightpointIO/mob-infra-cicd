@@ -1103,8 +1103,6 @@ detect_latest_git_tag() {
     local repo_url="$1"
     local repo_name="$2"
     
-    print_info "Detecting latest tag for $repo_name..."
-    
     # Try to get latest tag from GitHub API first
     if command -v curl >/dev/null 2>&1; then
         local api_url="https://api.github.com/repos/EightpointIO/${repo_name}/releases/latest"
@@ -1144,6 +1142,7 @@ bulk_drift_detection() {
     print_section "Git Reference Drift Detection for $repo_name"
     
     # Detect latest tag
+    print_info "Detecting latest tag for $repo_name..."
     local latest_tag=$(detect_latest_git_tag "$repo_url" "$repo_name")
     
     if [[ -z "$latest_tag" ]]; then
