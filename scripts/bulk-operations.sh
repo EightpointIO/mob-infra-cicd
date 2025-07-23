@@ -1044,8 +1044,8 @@ bulk_update_git_references() {
                     fi
                 fi
             else
-                # Update all git references
-                if sed -E 's/(git::.*github\.com\/[^\/]*\/[^\/]*\.git[^?]*\?ref=)[^"&]*/\1'$target_version'/g' "$file" > "$temp_file"; then
+                # Update all git references and ensure mob-infra-core is used
+                if sed -E 's/(git::.*github\.com\/[^\/]*\/)mob-infrastructure-core(\.git[^?]*\?ref=)[^"&]*/\1mob-infra-core\2'$target_version'/g; s/(git::.*github\.com\/[^\/]*\/)mob-infra-core(\.git[^?]*\?ref=)[^"&]*/\1mob-infra-core\2'$target_version'/g; s/(git::ssh:\/\/git@github\.com\/[^\/]*\/)mob-infrastructure-core(\.git[^?]*\?ref=)[^"&]*/\1mob-infra-core\2'$target_version'/g; s/(git::ssh:\/\/git@github\.com\/[^\/]*\/)mob-infra-core(\.git[^?]*\?ref=)[^"&]*/\1mob-infra-core\2'$target_version'/g' "$file" > "$temp_file"; then
                     if ! diff -q "$file" "$temp_file" >/dev/null 2>&1; then
                         changes_made=true
                     fi
@@ -1109,8 +1109,8 @@ bulk_standardize_repo_names() {
             local temp_file="${file}.tmp"
             local changes_made=false
             
-            # Update repository names
-            if sed "s|github\.com/[^/]*/${old_name}\.git|github.com/EightpointIO/${new_name}.git|g" "$file" > "$temp_file"; then
+            # Update repository names - handle multiple URL formats
+            if sed -E "s|github\.com/EightpointIO/${old_name}\.git|github.com/EightpointIO/${new_name}.git|g; s|git@github\.com:EightpointIO/${old_name}\.git|git@github.com:EightpointIO/${new_name}.git|g; s|ssh://git@github\.com/EightpointIO/${old_name}\.git|ssh://git@github.com/EightpointIO/${new_name}.git|g" "$file" > "$temp_file"; then
                 if ! diff -q "$file" "$temp_file" >/dev/null 2>&1; then
                     changes_made=true
                 fi
