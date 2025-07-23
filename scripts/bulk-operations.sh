@@ -991,7 +991,7 @@ bulk_dependency_update() {
 
 # Find all Terraform files with git references
 find_terraform_git_references() {
-    find "$PROJECT_ROOT" -name "*.tf" -type f -exec grep -l "git::" {} \; | grep -v ".terraform" | sort
+    find "$PROJECT_ROOT" -name "*.tf" -type f -exec grep -l "git::" {} \; | grep -v ".terraform" | grep -v ".history" | sort
 }
 
 # Update all git references to a new version
