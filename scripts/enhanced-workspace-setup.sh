@@ -45,7 +45,7 @@ select_workspace() {
         echo -e "  ${GREEN}1.${NC} Default location: ${CYAN}$DEFAULT_WORKSPACE${NC}"
         echo -e "  ${GREEN}2.${NC} Custom location"
         echo
-        echo -e "${DIM}Choose an option (1-2, default: 1):${NC} "
+        echo -e "${DIM}Choose an option (1-2, default: 1) or enter a full path directly:${NC} "
         
         # Use timeout for read to avoid hanging
         if read -t 30 -r workspace_choice < /dev/tty; then
@@ -74,6 +74,14 @@ select_workspace() {
                         echo -e "${YELLOW}⚠ Input timeout, using default${NC}"
                         WORKSPACE_DIR="$DEFAULT_WORKSPACE"
                     fi
+                    ;;
+                /*)
+                    # Direct path entry - check if it's a valid absolute path
+                    custom_path="$workspace_choice"
+                    # Expand ~ to home directory
+                    custom_path="${custom_path/#\~/$HOME}"
+                    WORKSPACE_DIR="$custom_path"
+                    echo -e "${GREEN}✓ Using custom workspace:${NC} $WORKSPACE_DIR"
                     ;;
                 *)
                     echo -e "${YELLOW}⚠ Invalid choice, using default${NC}"
@@ -575,7 +583,7 @@ else
     possible_readmes=(
         "$WORKSPACE_DIR/shared/mob-infra-cicd/README.md"
         "$WORKSPACE_DIR/shared/mob-infra-core/README.md"
-        "$DEFAULT_WORKSPACE/README.md"
+        "$WORKSPACE_DIR/README.md"
     )
     
     readme_copied=false
