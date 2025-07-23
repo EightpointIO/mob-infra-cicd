@@ -405,17 +405,40 @@ bulk_git_pull() {
                 exit 1
             fi
             
+            local has_stash=false
+            
             # Check for local changes
             if [[ -n "$(git status --porcelain)" ]]; then
                 print_warning "$repo_name: Local changes detected, stashing first"
-                git stash push -m "bulk-pull-stash-${TIMESTAMP}"
+                if git stash push -m "bulk-pull-stash-${TIMESTAMP}"; then
+                    has_stash=true
+                    print_info "$repo_name: Changes stashed successfully"
+                else
+                    print_error "$repo_name: Failed to stash changes"
+                    exit 1
+                fi
             fi
             
-            # Pull changes
-            if git pull --rebase origin "$(git branch --show-current)" 2>&1; then
+            # Pull changes (without rebase to avoid conflicts)
+            if git pull origin "$(git branch --show-current)" 2>&1; then
                 print_success "$repo_name: Pull completed successfully"
+                
+                # Reapply stash if we created one
+                if [[ "$has_stash" == true ]]; then
+                    if git stash pop; then
+                        print_success "$repo_name: Stashed changes reapplied successfully"
+                    else
+                        print_warning "$repo_name: Stash reapplication may have conflicts - check manually"
+                    fi
+                fi
             else
                 print_error "$repo_name: Pull failed"
+                
+                # If we stashed, try to restore the stash
+                if [[ "$has_stash" == true ]]; then
+                    git stash pop
+                    print_info "$repo_name: Restored stashed changes due to pull failure"
+                fi
                 exit 1
             fi
         ) &
@@ -1414,10 +1437,10 @@ show_help() {
     echo
     echo -e "${CYAN}Git Operations:${NC}"
     echo -e "  git-status              Show status of all Git repositories"
-    echo -e "  git-pull                Pull updates for all Git repositories"
+    echo -e "  git-pull-all            Pull updates for all Git repositories"
     echo -e "  git-commit \"message\"     Commit changes to all Git repositories"
     echo -e "  git-push                Push changes for all Git repositories"
-    echo -e "  git-all \"message\"        Pull, commit with message, and push for all repos"
+    echo -e "  git-commit-push \"msg\"    Commit with message and push for all repos (no pull)"
     echo
     echo -e "${CYAN}Terraform Operations:${NC}"
     echo -e "  tf-fmt                  Format all Terraform files"
@@ -1453,7 +1476,8 @@ show_help() {
     echo
     echo -e "${CYAN}Examples:${NC}"
     echo -e "  $0 git-status                    # Check status of all repos"
-    echo -e "  $0 git-all \"Update dependencies\" # Full git workflow"
+    echo -e "  $0 git-pull-all                  # Pull all repositories"
+    echo -e "  $0 git-commit-push \"Update deps\" # Commit and push (no pull)"
     echo -e "  $0 tf-all                        # Format, validate, plan all TF"
     echo -e "  $0 git-ref-summary               # Show git reference versions"
     echo -e "  $0 git-ref-update v1.0.6         # Update all refs to v1.0.6"
@@ -1506,11 +1530,11 @@ main() {
                 show_help
                 exit 0
                 ;;
-            git-status|git-pull|git-push|tf-fmt|tf-validate|tf-plan|security-scan|deps-update|git-ref-summary|git-ref-drift|git-ref-standardize|all|maintenance|rollback)
+            git-status|git-pull-all|git-push|tf-fmt|tf-validate|tf-plan|security-scan|deps-update|git-ref-summary|git-ref-drift|git-ref-standardize|all|maintenance|rollback)
                 operation="$1"
                 shift
                 ;;
-            git-commit|git-all|git-ref-update)
+            git-commit|git-commit-push|git-ref-update)
                 operation="$1"
                 if [[ -n "$2" ]] && [[ ! "$2" =~ ^-- ]]; then
                     commit_message="$2"
@@ -1550,7 +1574,7 @@ main() {
         "git-status")
             bulk_git_status
             ;;
-        "git-pull")
+        "git-pull-all")
             [[ "$dry_run" == false ]] && bulk_git_pull || print_info "Would pull all repositories"
             ;;
         "git-commit")
@@ -1559,13 +1583,12 @@ main() {
         "git-push")
             [[ "$dry_run" == false ]] && bulk_git_push || print_info "Would push all repositories"
             ;;
-        "git-all")
+        "git-commit-push")
             if [[ "$dry_run" == false ]]; then
-                bulk_git_pull
                 bulk_git_commit "$commit_message"
                 bulk_git_push
             else
-                print_info "Would pull, commit ('$commit_message'), and push all repositories"
+                print_info "Would commit ('$commit_message') and push all repositories (no pull)"
             fi
             ;;
         "tf-fmt")
