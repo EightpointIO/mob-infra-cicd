@@ -1270,7 +1270,7 @@ show_git_reference_summary() {
 # ============================================
 
 generate_operations_summary() {
-    print_header "BULK OPERATIONS SUMMARY"
+    print_header "OPERATIONS SUMMARY"
     
     # Ensure arrays are properly initialized
     local successful_count=${#SUCCESSFUL_OPERATIONS[@]}
@@ -1281,51 +1281,51 @@ generate_operations_summary() {
     
     if [[ $total_ops -gt 0 ]]; then
         success_rate=$(( (successful_count * 100) / total_ops ))
-    fi
-    
-    echo -e "${WHITE}Operation Statistics:${NC}"
-    echo -e "  Total Operations: ${BLUE}$total_ops${NC}"
-    echo -e "  Successful: ${GREEN}$successful_count${NC}"
-    echo -e "  Failed: ${RED}$failed_count${NC}"
-    echo -e "  Skipped: ${YELLOW}$skipped_count${NC}"
-    echo -e "  Success Rate: ${CYAN}$success_rate%${NC}"
-    
-    if [[ ${#SUCCESSFUL_OPERATIONS[@]} -gt 0 ]]; then
-        echo -e "\n${GREEN}Successful Operations:${NC}"
-        for op in "${SUCCESSFUL_OPERATIONS[@]}"; do
-            echo -e "  ${GREEN}✓${NC} $op"
-        done
-    fi
-    
-    if [[ ${#FAILED_OPERATIONS[@]} -gt 0 ]]; then
-        echo -e "\n${RED}Failed Operations:${NC}"
-        for op in "${FAILED_OPERATIONS[@]}"; do
-            echo -e "  ${RED}✗${NC} $op"
-        done
-    fi
-    
-    if [[ ${#SKIPPED_OPERATIONS[@]} -gt 0 ]]; then
-        echo -e "\n${YELLOW}Skipped Operations:${NC}"
-        for op in "${SKIPPED_OPERATIONS[@]}"; do
-            echo -e "  ${YELLOW}⊘${NC} $op"
-        done
+        
+        echo -e "${WHITE}Repository Operation Statistics:${NC}"
+        echo -e "  Total Operations: ${BLUE}$total_ops${NC}"
+        echo -e "  Successful: ${GREEN}$successful_count${NC}"
+        echo -e "  Failed: ${RED}$failed_count${NC}"
+        echo -e "  Skipped: ${YELLOW}$skipped_count${NC}"
+        echo -e "  Success Rate: ${CYAN}$success_rate%${NC}"
+        
+        if [[ ${#SUCCESSFUL_OPERATIONS[@]} -gt 0 ]]; then
+            echo -e "\n${GREEN}Successful Operations:${NC}"
+            for op in "${SUCCESSFUL_OPERATIONS[@]}"; do
+                echo -e "  ${GREEN}✓${NC} $op"
+            done
+        fi
+        
+        if [[ ${#FAILED_OPERATIONS[@]} -gt 0 ]]; then
+            echo -e "\n${RED}Failed Operations:${NC}"
+            for op in "${FAILED_OPERATIONS[@]}"; do
+                echo -e "  ${RED}✗${NC} $op"
+            done
+        fi
+        
+        if [[ ${#SKIPPED_OPERATIONS[@]} -gt 0 ]]; then
+            echo -e "\n${YELLOW}Skipped Operations:${NC}"
+            for op in "${SKIPPED_OPERATIONS[@]}"; do
+                echo -e "  ${YELLOW}⊘${NC} $op"
+            done
+        fi
+        
+        echo -e "\n${WHITE}Overall Success Score: ${NC}"
+        if [[ $success_rate -ge 90 ]]; then
+            echo -e "  ${GREEN}$success_rate/100 (Excellent)${NC}"
+        elif [[ $success_rate -ge 75 ]]; then
+            echo -e "  ${YELLOW}$success_rate/100 (Good)${NC}"
+        elif [[ $success_rate -ge 50 ]]; then
+            echo -e "  ${YELLOW}$success_rate/100 (Fair)${NC}"
+        else
+            echo -e "  ${RED}$success_rate/100 (Needs Attention)${NC}"
+        fi
+    else
+        echo -e "${CYAN}This was a read-only analysis operation.${NC}"
+        echo -e "${WHITE}No repository modifications were performed.${NC}"
     fi
     
     echo -e "\n${BLUE}Temp Directory:${NC} $TEMP_DIR"
-    
-    # Overall health score
-    local health_score=$success_rate
-    
-    echo -e "\n${WHITE}Overall Success Score: ${NC}"
-    if [[ $health_score -ge 90 ]]; then
-        echo -e "  ${GREEN}$health_score/100 (Excellent)${NC}"
-    elif [[ $health_score -ge 75 ]]; then
-        echo -e "  ${YELLOW}$health_score/100 (Good)${NC}"
-    elif [[ $health_score -ge 50 ]]; then
-        echo -e "  ${YELLOW}$health_score/100 (Fair)${NC}"
-    else
-        echo -e "  ${RED}$health_score/100 (Needs Attention)${NC}"
-    fi
 }
 
 # ============================================
