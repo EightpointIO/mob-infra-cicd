@@ -574,8 +574,8 @@ else
     # Look for README.md in common locations
     possible_readmes=(
         "$WORKSPACE_DIR/shared/mob-infra-cicd/README.md"
-        "$WORKSPACE_DIR/shared/mob-infra-cicd/README.md"
-        "/Users/$(whoami)/Developer/infrastructure/README.md"
+        "$WORKSPACE_DIR/shared/mob-infra-core/README.md"
+        "$DEFAULT_WORKSPACE/README.md"
     )
     
     readme_copied=false
