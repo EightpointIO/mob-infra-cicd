@@ -1273,19 +1273,23 @@ show_git_reference_summary() {
 generate_operations_summary() {
     print_header "BULK OPERATIONS SUMMARY"
     
-    local total_ops=$((${#SUCCESSFUL_OPERATIONS[@]} + ${#FAILED_OPERATIONS[@]} + ${#SKIPPED_OPERATIONS[@]}))
+    # Ensure arrays are properly initialized
+    local successful_count=${#SUCCESSFUL_OPERATIONS[@]}
+    local failed_count=${#FAILED_OPERATIONS[@]}
+    local skipped_count=${#SKIPPED_OPERATIONS[@]}
+    local total_ops=$((successful_count + failed_count + skipped_count))
     local success_rate=0
     
     if [[ $total_ops -gt 0 ]]; then
-        success_rate=$(( (${#SUCCESSFUL_OPERATIONS[@]} * 100) / total_ops ))
+        success_rate=$(( (successful_count * 100) / total_ops ))
     fi
     
     echo -e "${WHITE}Operation Statistics:${NC}"
     echo -e "  Total Operations: ${BLUE}$total_ops${NC}"
-    echo -e "  Successful: ${GREEN}${#SUCCESSFUL_OPERATIONS[@]}${NC}"
-    echo -e "  Failed: ${RED}${#FAILED_OPERATIONS[@]}${NC}"
-    echo -e "  Skipped: ${YELLOW}${#SKIPPED_OPERATIONS[@]}${NC}"
-    echo -e "  Success Rate: ${success_rate}%"
+    echo -e "  Successful: ${GREEN}$successful_count${NC}"
+    echo -e "  Failed: ${RED}$failed_count${NC}"
+    echo -e "  Skipped: ${YELLOW}$skipped_count${NC}"
+    echo -e "  Success Rate: ${CYAN}$success_rate%${NC}"
     
     if [[ ${#SUCCESSFUL_OPERATIONS[@]} -gt 0 ]]; then
         echo -e "\n${GREEN}Successful Operations:${NC}"
@@ -1313,15 +1317,15 @@ generate_operations_summary() {
     # Overall health score
     local health_score=$success_rate
     
-    echo -e "\n${WHITE}Overall Success Score: "
+    echo -e "\n${WHITE}Overall Success Score: ${NC}"
     if [[ $health_score -ge 90 ]]; then
-        echo -e "${GREEN}$health_score/100 (Excellent)${NC}"
+        echo -e "  ${GREEN}$health_score/100 (Excellent)${NC}"
     elif [[ $health_score -ge 75 ]]; then
-        echo -e "${YELLOW}$health_score/100 (Good)${NC}"
+        echo -e "  ${YELLOW}$health_score/100 (Good)${NC}"
     elif [[ $health_score -ge 50 ]]; then
-        echo -e "${YELLOW}$health_score/100 (Fair)${NC}"
+        echo -e "  ${YELLOW}$health_score/100 (Fair)${NC}"
     else
-        echo -e "${RED}$health_score/100 (Needs Attention)${NC}"
+        echo -e "  ${RED}$health_score/100 (Needs Attention)${NC}"
     fi
 }
 
