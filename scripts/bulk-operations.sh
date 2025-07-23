@@ -1206,12 +1206,12 @@ bulk_drift_detection() {
         local relative_path="${file#$PROJECT_ROOT/}"
         
         # Check this file for outdated references to the target repo
-        grep -n "git::.*github\.com/[^/]*/${repo_name}\.git" "$file" 2>/dev/null | while IFS= read -r line; do
+        while IFS= read -r line; do
             local current_ref=$(echo "$line" | sed -n 's/.*?ref=\([^"]*\).*/\1/p')
             if [[ -n "$current_ref" && "$current_ref" != "$latest_tag" ]]; then
                 echo "$relative_path:$current_ref" >> "$refs_file"
             fi
-        done
+        done < <(grep -n "git::.*github\.com/[^/]*/${repo_name}\.git" "$file" 2>/dev/null)
     done
     
     if [[ -f "$refs_file" ]]; then
