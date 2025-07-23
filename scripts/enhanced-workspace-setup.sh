@@ -286,7 +286,8 @@ while true; do
     total_repos_checked=$((total_repos_checked + repo_count))
     
     # Enhanced pattern matching for infrastructure repos
-    infra_repos=$(echo "$page_repos" | grep -E '^(mob-infra-|mob-infrastructure-|[a-z]+-infra-|[a-z]+-infrastructure-)' || true)
+    # Filter out known false positives and ensure we only get actual accessible repos
+    infra_repos=$(echo "$page_repos" | grep -E '^(mob-infra-|mob-infrastructure-|[a-z]+-infra-[a-z]+-|[a-z]+-infrastructure-[a-z]+-)' | grep -v -E '^(ios-infra-global|android-infra-global)$' || true)
     
     if [[ -n "$infra_repos" ]]; then
         if [[ -n "$all_repos" ]]; then
@@ -305,7 +306,8 @@ echo -e "${CYAN}✓ Scanned $total_repos_checked repositories${NC}"
 
 if [[ -z "$all_repos" ]]; then
     echo -e "${RED}✗ No infrastructure repositories found${NC}"
-    echo -e "${YELLOW}⚠ Expected patterns: mob-infra-*, mob-infrastructure-*, team-infra-*${NC}"
+    echo -e "${YELLOW}⚠ Expected patterns: mob-infra-*, mob-infrastructure-*, team-infra-env-*${NC}"
+    echo -e "${YELLOW}⚠ Excluded patterns: *-infra-global (these are directory names, not repos)${NC}"
     exit 1
 fi
 
