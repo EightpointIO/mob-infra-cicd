@@ -241,7 +241,7 @@ find_git_repositories() {
 
 # Find all Terraform directories
 find_terraform_directories() {
-    find "$PROJECT_ROOT" -name "*.tf" -type f -exec dirname {} \; | sort -u | grep -v "\.terraform"
+    find "$PROJECT_ROOT" -name "*.tf" -type f -exec dirname {} \; | sort -u | grep -v -E "\.(terraform|history)"
 }
 
 # Create backup of current state
