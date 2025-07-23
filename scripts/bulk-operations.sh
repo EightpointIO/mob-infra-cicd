@@ -41,6 +41,12 @@ readonly CURRENT_JOBS=0
 # Initialize directories
 init_directories() {
     mkdir -p "$TEMP_DIR" "$STATUS_DIR"
+    
+    # Clean up old temp files (older than 1 day) to prevent accumulation
+    find "$TEMP_DIR" -name "status-*" -type d -mtime +1 -exec rm -rf {} \; 2>/dev/null || true
+    find "$TEMP_DIR" -name "git_refs_summary_*" -type f -mtime +1 -exec rm -f {} \; 2>/dev/null || true
+    find "$TEMP_DIR" -name "outdated_refs_*" -type f -mtime +1 -exec rm -f {} \; 2>/dev/null || true
+    find "$TEMP_DIR" -name "clone-*" -type d -mtime +1 -exec rm -rf {} \; 2>/dev/null || true
 }
 
 
@@ -1541,6 +1547,9 @@ main() {
     
     # Generate summary
     generate_operations_summary
+    
+    # Clean up current session temp files
+    rm -rf "$STATUS_DIR" 2>/dev/null || true
     
     print_success "Bulk operations completed successfully!"
 }
