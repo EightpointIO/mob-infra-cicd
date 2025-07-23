@@ -246,7 +246,7 @@ wait_for_all_jobs() {
 
 # Find all Git repositories
 find_git_repositories() {
-    find "$PROJECT_ROOT" -type d -name ".git" -exec dirname {} \; | sort
+    find "$PROJECT_ROOT" -type d -name ".git" -exec dirname {} \; | grep -v "\.terraform/modules" | grep -v "\.history" | sort
 }
 
 # Find all Terraform directories
@@ -356,13 +356,13 @@ bulk_git_status() {
             fi
             
             # Check for unpushed commits
-            local unpushed="$(git log --oneline @{u}.. 2>/dev/null | wc -l || echo "0")"
+            local unpushed="$(git log --oneline @{u}.. 2>/dev/null | wc -l | tr -d ' ' || echo "0")"
             if [[ $unpushed -gt 0 ]]; then
                 echo -e "${YELLOW}Unpushed commits:${NC} $unpushed"
             fi
             
             # Check for unpulled commits
-            local unpulled="$(git log --oneline ..@{u} 2>/dev/null | wc -l || echo "0")"
+            local unpulled="$(git log --oneline ..@{u} 2>/dev/null | wc -l | tr -d ' ' || echo "0")"
             if [[ $unpulled -gt 0 ]]; then
                 echo -e "${YELLOW}Unpulled commits:${NC} $unpulled"
             fi
@@ -533,7 +533,7 @@ bulk_git_push() {
             cd "$repo"
             
             # Check if we have commits to push
-            local unpushed="$(git log --oneline @{u}.. 2>/dev/null | wc -l || echo "0")"
+            local unpushed="$(git log --oneline @{u}.. 2>/dev/null | wc -l | tr -d ' ' || echo "0")"
             if [[ $unpushed -eq 0 ]]; then
                 print_info "$repo_name: No commits to push"
                 exit 0
