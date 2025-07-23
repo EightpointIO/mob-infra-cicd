@@ -23,11 +23,8 @@ readonly NC='\033[0m' # No Color
 readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Calculate infrastructure root: /path/to/infrastructure/shared/mob-infra-cicd/scripts -> /path/to/infrastructure
 readonly PROJECT_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
-readonly LOG_DIR="${SCRIPT_DIR}/logs"
-readonly BACKUP_DIR="${SCRIPT_DIR}/backups"
 readonly TEMP_DIR="${SCRIPT_DIR}/temp"
 readonly TIMESTAMP="$(date +%Y%m%d-%H%M%S)"
-readonly BULK_LOG="${LOG_DIR}/bulk-operations-${TIMESTAMP}.log"
 
 # Operation tracking (using arrays and files since bash 3.2 doesn't support associative arrays)
 OPERATION_PIDS=()
@@ -43,57 +40,42 @@ readonly CURRENT_JOBS=0
 
 # Initialize directories
 init_directories() {
-    mkdir -p "$LOG_DIR" "$BACKUP_DIR" "$TEMP_DIR" "$STATUS_DIR"
+    mkdir -p "$TEMP_DIR" "$STATUS_DIR"
 }
 
-# Logging functions
-log_message() {
-    local level="$1"
-    local message="$2"
-    local timestamp="$(date '+%Y-%m-%d %H:%M:%S')"
-    echo "[$timestamp] [$level] $message" >> "$BULK_LOG"
-}
 
 print_header() {
     echo -e "\n${BLUE}${BOLD}============================================${NC}"
     echo -e "${WHITE}${BOLD}$1${NC}"
     echo -e "${BLUE}${BOLD}============================================${NC}\n"
-    log_message "INFO" "HEADER: $1"
 }
 
 print_section() {
     echo -e "\n${CYAN}${BOLD}>>> $1${NC}"
-    log_message "INFO" "SECTION: $1"
 }
 
 print_subsection() {
     echo -e "\n${BLUE}=== $1 ===${NC}"
-    log_message "INFO" "SUBSECTION: $1"
 }
 
 print_success() {
     echo -e "${GREEN}✓${NC} $1"
-    log_message "SUCCESS" "$1"
 }
 
 print_warning() {
     echo -e "${YELLOW}⚠${NC} $1"
-    log_message "WARNING" "$1"
 }
 
 print_error() {
     echo -e "${RED}✗${NC} $1"
-    log_message "ERROR" "$1"
 }
 
 print_info() {
     echo -e "${BLUE}ℹ${NC} $1"
-    log_message "INFO" "$1"
 }
 
 print_progress() {
     echo -e "${PURPLE}⟳${NC} $1"
-    log_message "PROGRESS" "$1"
 }
 
 # Progress bar with colors
@@ -255,56 +237,6 @@ find_terraform_directories() {
 }
 
 # Create backup of current state
-create_backup() {
-    local operation="$1"
-    local target="$2"
-    local backup_path="${BACKUP_DIR}/${operation}-${TIMESTAMP}"
-    
-    print_info "Creating backup for $operation: $target"
-    
-    if [[ -d "$target" ]]; then
-        mkdir -p "$backup_path"
-        
-        # Backup git state if it's a git repo
-        if [[ -d "$target/.git" ]]; then
-            git -C "$target" stash push -m "bulk-operations-backup-${TIMESTAMP}" 2>/dev/null || true
-            git -C "$target" log --oneline -n 10 > "$backup_path/git-log.txt" 2>/dev/null || true
-            git -C "$target" status --porcelain > "$backup_path/git-status.txt" 2>/dev/null || true
-        fi
-        
-        # Backup Terraform state if it exists
-        if [[ -f "$target/.terraform.lock.hcl" ]]; then
-            cp "$target/.terraform.lock.hcl" "$backup_path/" 2>/dev/null || true
-        fi
-        
-        # Store rollback command
-        echo "restore_backup '$backup_path'" > "${STATUS_DIR}/${operation}.rollback"
-        
-        print_success "Backup created: $backup_path"
-        return 0
-    else
-        print_warning "Target directory not found: $target"
-        return 1
-    fi
-}
-
-# Restore from backup
-restore_backup() {
-    local backup_path="$1"
-    print_warning "Restoring from backup: $backup_path"
-    
-    # Implementation would depend on specific backup contents
-    # This is a placeholder for the rollback mechanism
-    log_message "ROLLBACK" "Restore initiated from: $backup_path"
-}
-
-# Get rollback command for operation
-get_rollback_command() {
-    local operation="$1"
-    if [[ -f "${STATUS_DIR}/${operation}.rollback" ]]; then
-        cat "${STATUS_DIR}/${operation}.rollback"
-    fi
-}
 
 # ============================================
 # GIT BULK OPERATIONS
@@ -395,7 +327,6 @@ bulk_git_pull() {
         
         (
             operation_name="git-pull-$repo_name"
-            create_backup "$operation_name" "$repo"
             
             cd "$repo"
             
@@ -1053,8 +984,6 @@ bulk_update_git_references() {
             print_progress "Processing: $relative_path"
             
             # Create backup
-            create_backup "git-ref-update" "$(dirname "$file")"
-            
             local temp_file="${file}.tmp"
             local changes_made=false
             
@@ -1127,8 +1056,6 @@ bulk_standardize_repo_names() {
             print_progress "Processing: $relative_path"
             
             # Create backup
-            create_backup "repo-name-update" "$(dirname "$file")"
-            
             local temp_file="${file}.tmp"
             local changes_made=false
             
@@ -1330,39 +1257,6 @@ show_git_reference_summary() {
     print_success "Git reference summary completed"
 }
 
-# ============================================
-# ROLLBACK FUNCTIONALITY
-# ============================================
-
-rollback_operation() {
-    local operation="$1"
-    
-    local rollback_cmd="$(get_rollback_command "$operation")"
-    if [[ -z "$rollback_cmd" ]]; then
-        print_error "No rollback command available for: $operation"
-        return 1
-    fi
-    
-    print_warning "Rolling back operation: $operation"
-    eval "$rollback_cmd"
-}
-
-rollback_all_failed() {
-    print_section "Rolling Back Failed Operations"
-    
-    if [[ ${#FAILED_OPERATIONS[@]} -eq 0 ]]; then
-        print_info "No failed operations to rollback"
-        return 0
-    fi
-    
-    print_warning "Rolling back ${#FAILED_OPERATIONS[@]} failed operations"
-    
-    for operation in "${FAILED_OPERATIONS[@]}"; do
-        rollback_operation "$operation"
-    done
-    
-    print_success "Rollback completed"
-}
 
 # ============================================
 # REPORTING AND SUMMARY
@@ -1406,9 +1300,7 @@ generate_operations_summary() {
         done
     fi
     
-    echo -e "\n${BLUE}Log File:${NC} $BULK_LOG"
-    echo -e "${BLUE}Backup Directory:${NC} $BACKUP_DIR"
-    echo -e "${BLUE}Temp Directory:${NC} $TEMP_DIR"
+    echo -e "\n${BLUE}Temp Directory:${NC} $TEMP_DIR"
     
     # Overall health score
     local health_score=$success_rate
@@ -1465,11 +1357,9 @@ show_help() {
     echo -e "${CYAN}Bulk Operations:${NC}"
     echo -e "  all                     Run all operations (git, terraform, security, deps)"
     echo -e "  maintenance             Run maintenance tasks (format, validate, security)"
-    echo -e "  rollback                Rollback all failed operations"
     echo
     echo -e "${CYAN}Options:${NC}"
     echo -e "  --parallel N            Set maximum parallel jobs (default: 8)"
-    echo -e "  --no-backup             Skip creating backups"
     echo -e "  --force                 Force operations even if warnings"
     echo -e "  --dry-run               Show what would be done without executing"
     echo -e "  -h, --help              Show this help message"
@@ -1494,12 +1384,10 @@ show_help() {
 main() {
     # Initialize
     init_directories
-    log_message "INFO" "Bulk operations started with args: $*"
     
     # Parse global options
     local operation=""
     local commit_message=""
-    local no_backup=false
     local force=false
     local dry_run=false
     
@@ -1513,10 +1401,6 @@ main() {
                     print_error "Invalid parallel jobs number: $2"
                     exit 1
                 fi
-                ;;
-            --no-backup)
-                no_backup=true
-                shift
                 ;;
             --force)
                 force=true
@@ -1563,7 +1447,6 @@ main() {
     print_info "Operation: $operation"
     print_info "Parallel jobs: $MAX_PARALLEL_JOBS"
     print_info "Project root: $PROJECT_ROOT"
-    print_info "Log file: $BULK_LOG"
     
     if [[ "$dry_run" == true ]]; then
         print_warning "DRY RUN MODE - No changes will be made"
@@ -1648,9 +1531,6 @@ main() {
                 print_info "Would run all operations (git, terraform, security, dependencies)"
             fi
             ;;
-        "rollback")
-            [[ "$dry_run" == false ]] && rollback_all_failed || print_info "Would rollback all failed operations"
-            ;;
         *)
             print_error "Unknown operation: $operation"
             exit 1
@@ -1660,7 +1540,6 @@ main() {
     # Generate summary
     generate_operations_summary
     
-    log_message "INFO" "Bulk operations completed"
     print_success "Bulk operations completed successfully!"
 }
 
