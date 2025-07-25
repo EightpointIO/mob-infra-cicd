@@ -40,16 +40,20 @@ create_minimal_config() {
     local repo_path="$1"
     cat > "$repo_path/.pre-commit-config.yaml" << EOF
 # Pre-commit configuration for Terraform infrastructure
-# References centralized hooks from the CI/CD repository
+# Uses the same configuration as the centralized cicd repository
 
 repos:
-  - repo: $CENTRAL_HOOKS_REPO
-    rev: $CENTRAL_HOOKS_REV
+  - repo: https://github.com/antonbabenko/pre-commit-terraform
+    rev: v1.88.0
     hooks:
       - id: terraform_fmt
       - id: terraform_validate
       - id: terraform_docs
       - id: terraform_tflint
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.4.0
+    hooks:
       - id: trailing-whitespace
       - id: end-of-file-fixer
       - id: check-yaml
@@ -105,6 +109,6 @@ fi
 echo -e "${GREEN}Pre-commit installation with centralized configuration completed!${NC}"
 echo -e "${BLUE}Benefits:${NC}"
 echo -e "  • ${GREEN}✓${NC} No duplication of hook configuration"
-echo -e "  • ${GREEN}✓${NC} Centralized hook management in cicd repository"
-echo -e "  • ${GREEN}✓${NC} Easy updates by pushing changes to cicd repository"
 echo -e "  • ${GREEN}✓${NC} Consistent hooks across all infrastructure repositories"
+echo -e "  • ${GREEN}✓${NC} Easy updates by modifying this install script"
+echo -e "  • ${GREEN}✓${NC} Standard pre-commit hooks with Terraform support"
