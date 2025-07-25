@@ -1019,7 +1019,7 @@ bulk_update_git_references() {
                 fi
             else
                 # Update all git references and ensure mob-infra-core is used
-                if sed -E 's/(git::.*github\.com\/[^\/]*\/)mob-infrastructure-core(\.git[^?]*\?ref=)[^"&]*/\1mob-infra-core\2'$target_version'/g; s/(git::.*github\.com\/[^\/]*\/)mob-infra-core(\.git[^?]*\?ref=)[^"&]*/\1mob-infra-core\2'$target_version'/g; s/(git::ssh:\/\/git@github\.com\/[^\/]*\/)mob-infrastructure-core(\.git[^?]*\?ref=)[^"&]*/\1mob-infra-core\2'$target_version'/g; s/(git::ssh:\/\/git@github\.com\/[^\/]*\/)mob-infra-core(\.git[^?]*\?ref=)[^"&]*/\1mob-infra-core\2'$target_version'/g' "$file" > "$temp_file"; then
+                if sed -E 's/(git::.*github\.com\/[^\/]*\/)mob-infrastructure-core(\.git[^?]*\?ref=)[^"&]*/\1mob-infra-core\2'$target_version'/g; s/(git::.*github\.com\/[^\/]*\/)mob-infra-core(\.git[^?]*\?ref=)[^"&]*/\1mob-infra-core\2'$target_version'/g; s/(git::https:\/\/git@github\.com\/[^\/]*\/)mob-infrastructure-core(\.git[^?]*\?ref=)[^"&]*/\1mob-infra-core\2'$target_version'/g; s/(git::https:\/\/git@github\.com\/[^\/]*\/)mob-infra-core(\.git[^?]*\?ref=)[^"&]*/\1mob-infra-core\2'$target_version'/g' "$file" > "$temp_file"; then
                     if ! diff -q "$file" "$temp_file" >/dev/null 2>&1; then
                         changes_made=true
                     fi
