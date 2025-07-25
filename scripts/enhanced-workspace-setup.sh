@@ -261,7 +261,7 @@ if [[ -z "${GITHUB_TOKEN:-}" ]]; then
 fi
 
 # Create base directory structure
-mkdir -p "$WORKSPACE_DIR/teams" "$WORKSPACE_DIR/shared" "$SCRIPT_DIR/temp"
+mkdir -p "$WORKSPACE_DIR/teams" "$SCRIPT_DIR/temp"
 echo -e "${GREEN}✓ Base directory structure ready${NC}"
 echo
 
@@ -339,11 +339,19 @@ declare -a org_info_list=()
 # Function to determine organization info for a repo
 get_org_info() {
     local repo="$1"
-    if [[ "$repo" =~ ^mob-infra- ]] || [[ "$repo" =~ ^mob-infrastructure- ]]; then
-        echo "shared/$repo"
+    
+    # Special handling for core infrastructure repos (remove prefix)
+    if [[ "$repo" == "mob-infra-cicd" ]]; then
+        echo "cicd"
         return
     fi
     
+    if [[ "$repo" == "mob-infra-core" ]]; then
+        echo "core"
+        return
+    fi
+    
+    # Keep existing logic for team repos
     if [[ "$repo" =~ ^([a-z]+)-infra-(global|dev|prod|staging)-(.+)$ ]]; then
         echo "teams/${BASH_REMATCH[1]}/${BASH_REMATCH[2]}/${BASH_REMATCH[3]}"
         return
@@ -566,10 +574,115 @@ if [[ ${#FAILED_REPOS[@]} -gt 0 ]]; then
     echo -e "\n${YELLOW}💡 Check SSH keys and repository permissions for failed repos${NC}"
 fi
 
+# Generate VS Code workspace file
+generate_workspace_file() {
+    local workspace_file="$WORKSPACE_DIR/infrastructure-workspace.code-workspace"
+    
+    echo -e "${CYAN}📁 Generating VS Code workspace file...${NC}"
+    
+    cat > "$workspace_file" << 'EOF'
+{
+    "folders": [
+        {
+            "name": "🏗️ Infrastructure Workspace",
+            "path": "./"
+        }
+    ],
+    "settings": {
+        "files.exclude": {
+            "**/.terraform": true,
+            "**/*.tfplan": true,
+            "**/*.tfstate": true,
+            "**/*.tfstate.backup": true
+        },
+        "files.associations": {
+            "*.tfvars": "terraform",
+            "*.tf": "terraform"
+        }
+    },
+    "extensions": {
+        "recommendations": [
+            "hashicorp.terraform",
+            "ms-vscode.vscode-json", 
+            "redhat.vscode-yaml",
+            "github.vscode-github-actions",
+            "ms-vscode.vscode-yaml"
+        ]
+    }
+}
+EOF
+    
+    if [[ -f "$workspace_file" ]]; then
+        echo -e "${GREEN}✓ Workspace file generated:${NC} $workspace_file"
+    else
+        echo -e "${RED}❌ Failed to generate workspace file${NC}"
+    fi
+}
+
+# Generate the workspace file
+generate_workspace_file
+
+# Create workspace documentation
+create_workspace_docs() {
+    local docs_file="$WORKSPACE_DIR/WORKSPACE_STRUCTURE.md"
+    
+    echo -e "${CYAN}📝 Creating workspace documentation...${NC}"
+    
+    cat > "$docs_file" << 'EOF'
+# Infrastructure Workspace Structure
+
+This workspace is organized for better team collaboration and clear separation of concerns.
+
+## 📁 Folder Structure
+
+```
+infrastructure/
+├── 🚀 cicd/              # CI/CD Pipeline (from mob-infra-cicd)
+│   ├── scripts/          # Automation scripts
+│   ├── configs/          # Pipeline configurations
+│   └── policies/         # Security & compliance policies
+│
+├── 📦 core/              # Infrastructure Core (from mob-infra-core)
+│   ├── modules/          # Reusable Terraform modules
+│   ├── global-modules/   # Global infrastructure components
+│   └── setup-modules/    # Setup & bootstrap modules
+│
+└── 👥 teams/             # Team-specific infrastructure
+    ├── ios/              # iOS team infrastructure
+    └── android/          # Android team infrastructure
+```
+
+## 🔧 Usage
+
+- **cicd/**: Contains all CI/CD pipeline scripts, configurations, and policies
+- **core/**: Houses reusable Terraform modules and global infrastructure components
+- **teams/**: Team-specific infrastructure configurations and deployments
+
+## 🚀 Getting Started
+
+1. Open the workspace: `code infrastructure-workspace.code-workspace`
+2. Each folder contains its own README with specific instructions
+3. Use the infrastructure manager for common operations
+
+## 📋 Common Commands
+
+- Setup workspace: `./cicd/scripts/infrastructure-manager.sh --workspace`
+- Pull all repos: `./cicd/scripts/infrastructure-manager.sh --pull`
+- Format Terraform: `./cicd/scripts/infrastructure-manager.sh --tf-fmt`
+EOF
+    
+    if [[ -f "$docs_file" ]]; then
+        echo -e "${GREEN}✓ Workspace documentation created${NC}"
+    fi
+}
+
+# Create workspace documentation
+create_workspace_docs
+
 echo -e "\n${CYAN}Workspace directory:${NC} $WORKSPACE_DIR"
 
 echo -e "${GREEN}✓ Enhanced workspace setup completed${NC}"
-echo -e "${CYAN}To open in VS Code:${NC} cd $WORKSPACE_DIR && code ."
+echo -e "${CYAN}To open in VS Code:${NC} cd $WORKSPACE_DIR && code infrastructure-workspace.code-workspace"
 
 # Copy important files to workspace root for easy access
 echo -e "${CYAN}📋 Copying important files to workspace root...${NC}"
