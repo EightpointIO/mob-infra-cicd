@@ -21,8 +21,8 @@ readonly NC='\033[0m' # No Color
 
 # Configuration
 readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# Calculate infrastructure root: /path/to/infrastructure/shared/mob-infra-cicd/scripts -> /path/to/infrastructure
-readonly PROJECT_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+# Calculate infrastructure root: /path/to/infrastructure/cicd/scripts -> /path/to/infrastructure
+readonly PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 readonly TEMP_DIR="${SCRIPT_DIR}/temp"
 readonly TIMESTAMP="$(date +%Y%m%d-%H%M%S)"
 
