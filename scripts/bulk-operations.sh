@@ -33,6 +33,7 @@ FAILED_OPERATIONS=()
 SUCCESSFUL_OPERATIONS=()
 SKIPPED_OPERATIONS=()
 readonly STATUS_DIR="${TEMP_DIR}/status-${TIMESTAMP}"
+readonly BULK_LOG="${TEMP_DIR}/bulk-operations-${TIMESTAMP}.log"
 
 # Performance settings
 MAX_PARALLEL_JOBS=8
@@ -41,12 +42,16 @@ readonly CURRENT_JOBS=0
 # Initialize directories
 init_directories() {
     mkdir -p "$TEMP_DIR" "$STATUS_DIR"
-    
+
+    # Initialize log file
+    echo "Bulk Operations Log - $(date)" > "$BULK_LOG"
+
     # Clean up old temp files (older than 1 day) to prevent accumulation
     find "$TEMP_DIR" -name "status-*" -type d -mtime +1 -exec rm -rf {} \; 2>/dev/null || true
     find "$TEMP_DIR" -name "git_refs_summary_*" -type f -mtime +1 -exec rm -f {} \; 2>/dev/null || true
     find "$TEMP_DIR" -name "outdated_refs_*" -type f -mtime +1 -exec rm -f {} \; 2>/dev/null || true
     find "$TEMP_DIR" -name "clone-*" -type d -mtime +1 -exec rm -rf {} \; 2>/dev/null || true
+    find "$TEMP_DIR" -name "bulk-operations-*" -type f -mtime +1 -exec rm -f {} \; 2>/dev/null || true
 }
 
 
@@ -92,12 +97,12 @@ progress_bar() {
     local width=50
     local percentage=$((current * 100 / total))
     local completed=$((current * width / total))
-    
+
     printf "\r${CYAN}${operation}: ${NC}${BLUE}[${NC}"
     printf "%*s" $completed | tr ' ' '█'
     printf "%*s" $((width - completed)) | tr ' ' '░'
     printf "${BLUE}] ${WHITE}%d%% ${CYAN}(%d/%d)${NC}" $percentage $current $total
-    
+
     if [[ $current -eq $total ]]; then
         echo # New line when complete
     fi
@@ -109,7 +114,7 @@ show_spinner() {
     local message=$2
     local spin='⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏'
     local i=0
-    
+
     while kill -0 $pid 2>/dev/null; do
         printf "\r${PURPLE}${spin:$i:1}${NC} $message"
         i=$(((i + 1) % ${#spin}))
@@ -146,14 +151,14 @@ remove_operation_pid() {
     local target_pid="$1"
     local new_pids=()
     local new_names=()
-    
+
     for i in "${!OPERATION_PIDS[@]}"; do
         if [[ "${OPERATION_PIDS[$i]}" != "$target_pid" ]]; then
             new_pids+=("${OPERATION_PIDS[$i]}")
             new_names+=("${OPERATION_NAMES[$i]}")
         fi
     done
-    
+
     if [[ ${#new_pids[@]} -gt 0 ]]; then
         OPERATION_PIDS=("${new_pids[@]}")
         OPERATION_NAMES=("${new_names[@]}")
@@ -161,7 +166,7 @@ remove_operation_pid() {
         OPERATION_PIDS=()
         OPERATION_NAMES=()
     fi
-    
+
     rm -f "${STATUS_DIR}/${target_pid}.operation"
 }
 
@@ -169,15 +174,15 @@ remove_operation_pid() {
 wait_for_job_slot() {
     while [[ ${#OPERATION_PIDS[@]} -ge $MAX_PARALLEL_JOBS ]]; do
         local found_completed=false
-        
+
         for i in "${!OPERATION_PIDS[@]}"; do
             local pid="${OPERATION_PIDS[$i]}"
             local operation="${OPERATION_NAMES[$i]}"
-            
+
             if ! kill -0 "$pid" 2>/dev/null; then
                 wait "$pid"
                 local exit_code=$?
-                
+
                 if [[ $exit_code -eq 0 ]]; then
                     set_operation_status "$operation" "SUCCESS"
                     SUCCESSFUL_OPERATIONS+=("$operation")
@@ -185,13 +190,13 @@ wait_for_job_slot() {
                     set_operation_status "$operation" "FAILED"
                     FAILED_OPERATIONS+=("$operation")
                 fi
-                
+
                 remove_operation_pid "$pid"
                 found_completed=true
                 break
             fi
         done
-        
+
         if [[ "$found_completed" == false ]]; then
             sleep 0.1
         fi
@@ -202,15 +207,15 @@ wait_for_job_slot() {
 wait_for_all_jobs() {
     while [[ ${#OPERATION_PIDS[@]} -gt 0 ]]; do
         local pids_to_remove=()
-        
+
         for i in "${!OPERATION_PIDS[@]}"; do
             local pid="${OPERATION_PIDS[$i]}"
             local operation="${OPERATION_NAMES[$i]}"
-            
+
             if ! kill -0 "$pid" 2>/dev/null; then
                 wait "$pid"
                 local exit_code=$?
-                
+
                 if [[ $exit_code -eq 0 ]]; then
                     set_operation_status "$operation" "SUCCESS"
                     SUCCESSFUL_OPERATIONS+=("$operation")
@@ -218,18 +223,18 @@ wait_for_all_jobs() {
                     set_operation_status "$operation" "FAILED"
                     FAILED_OPERATIONS+=("$operation")
                 fi
-                
+
                 pids_to_remove+=("$pid")
             fi
         done
-        
+
         # Remove completed PIDs
         if [[ ${#pids_to_remove[@]} -gt 0 ]]; then
             for pid in "${pids_to_remove[@]}"; do
                 remove_operation_pid "$pid"
             done
         fi
-        
+
         sleep 0.1
     done
 }
@@ -252,37 +257,37 @@ find_terraform_directories() {
 
 bulk_git_status() {
     print_section "Bulk Git Status Check"
-    
+
     local repos=($(find_git_repositories))
     local total=${#repos[@]}
     local current=0
-    
+
     if [[ $total -eq 0 ]]; then
         print_warning "No Git repositories found"
         return 0
     fi
-    
+
     print_info "Found $total Git repositories"
-    
+
     for repo in "${repos[@]}"; do
         ((current++))
         progress_bar $current $total "Git Status"
-        
+
         local repo_name="$(basename "$repo")"
         print_subsection "Repository: $repo_name"
-        
+
         (
             cd "$repo"
             echo -e "${CYAN}Repository:${NC} $repo"
             echo -e "${BLUE}Branch:${NC} $(git branch --show-current 2>/dev/null || echo 'detached')"
             echo -e "${BLUE}Status:${NC}"
-            
+
             local status_output="$(git status --porcelain 2>/dev/null)"
             if [[ -n "$status_output" ]]; then
                 echo "$status_output" | while IFS= read -r line; do
                     local status_code="${line:0:2}"
                     local file_path="${line:3}"
-                    
+
                     case "$status_code" in
                         " M"|"M ") echo -e "  ${YELLOW}Modified:${NC} $file_path" ;;
                         " A"|"A ") echo -e "  ${GREEN}Added:${NC} $file_path" ;;
@@ -294,58 +299,58 @@ bulk_git_status() {
             else
                 echo -e "  ${GREEN}Clean working directory${NC}"
             fi
-            
+
             # Check for unpushed commits
             local unpushed="$(git log --oneline @{u}.. 2>/dev/null | wc -l | tr -d ' ' || echo "0")"
             if [[ $unpushed -gt 0 ]]; then
                 echo -e "${YELLOW}Unpushed commits:${NC} $unpushed"
             fi
-            
+
             # Check for unpulled commits
             local unpulled="$(git log --oneline ..@{u} 2>/dev/null | wc -l | tr -d ' ' || echo "0")"
             if [[ $unpulled -gt 0 ]]; then
                 echo -e "${YELLOW}Unpulled commits:${NC} $unpulled"
             fi
-            
+
             echo
         ) | tee -a "$BULK_LOG"
     done
-    
+
     print_success "Git status check completed for $total repositories"
 }
 
 bulk_git_pull() {
     print_section "Bulk Git Pull"
-    
+
     local repos=($(find_git_repositories))
     local total=${#repos[@]}
-    
+
     if [[ $total -eq 0 ]]; then
         print_warning "No Git repositories found"
         return 0
     fi
-    
+
     print_info "Pulling updates for $total repositories"
-    
+
     for repo in "${repos[@]}"; do
         wait_for_job_slot
-        
+
         local repo_name="$(basename "$repo")"
         print_progress "Pulling: $repo_name"
-        
+
         (
             operation_name="git-pull-$repo_name"
-            
+
             cd "$repo"
-            
+
             # Check if we have a remote
             if ! git remote get-url origin &>/dev/null; then
                 print_warning "$repo_name: No remote origin configured"
                 exit 1
             fi
-            
+
             local has_stash=false
-            
+
             # Check for local changes
             if [[ -n "$(git status --porcelain)" ]]; then
                 print_warning "$repo_name: Local changes detected, stashing first"
@@ -357,11 +362,11 @@ bulk_git_pull() {
                     exit 1
                 fi
             fi
-            
+
             # Pull changes (without rebase to avoid conflicts)
             if git pull origin "$(git branch --show-current)" 2>&1; then
                 print_success "$repo_name: Pull completed successfully"
-                
+
                 # Reapply stash if we created one
                 if [[ "$has_stash" == true ]]; then
                     if git stash pop; then
@@ -372,7 +377,7 @@ bulk_git_pull() {
                 fi
             else
                 print_error "$repo_name: Pull failed"
-                
+
                 # If we stashed, try to restore the stash
                 if [[ "$has_stash" == true ]]; then
                     git stash pop
@@ -381,54 +386,54 @@ bulk_git_pull() {
                 exit 1
             fi
         ) &
-        
+
         local pid=$!
         add_operation_pid "$pid" "git-pull-$(basename "$repo")"
     done
-    
+
     wait_for_all_jobs
     print_success "Bulk Git pull completed"
 }
 
 bulk_git_commit() {
     local message="$1"
-    
+
     if [[ -z "$message" ]]; then
         print_error "Commit message is required"
         return 1
     fi
-    
+
     print_section "Bulk Git Commit"
-    
+
     local repos=($(find_git_repositories))
     local total=${#repos[@]}
-    
+
     if [[ $total -eq 0 ]]; then
         print_warning "No Git repositories found"
         return 0
     fi
-    
+
     print_info "Committing changes to $total repositories with message: '$message'"
-    
+
     for repo in "${repos[@]}"; do
         wait_for_job_slot
-        
+
         local repo_name="$(basename "$repo")"
-        
+
         (
             cd "$repo"
-            
+
             # Check if there are changes to commit
             if [[ -z "$(git status --porcelain)" ]]; then
                 print_info "$repo_name: No changes to commit"
                 exit 0
             fi
-            
+
             print_progress "Committing: $repo_name"
-            
+
             # Add all changes
             git add -A
-            
+
             # Commit with provided message
             if git commit -m "$message
 
@@ -441,58 +446,67 @@ Co-Authored-By: Claude <noreply@anthropic.com>"; then
                 exit 1
             fi
         ) &
-        
+
         local pid=$!
         add_operation_pid "$pid" "git-commit-$(basename "$repo")"
     done
-    
+
     wait_for_all_jobs
     print_success "Bulk Git commit completed"
 }
 
 bulk_git_push() {
     print_section "Bulk Git Push"
-    
+
     local repos=($(find_git_repositories))
     local total=${#repos[@]}
-    
+
     if [[ $total -eq 0 ]]; then
         print_warning "No Git repositories found"
         return 0
     fi
-    
+
     print_info "Pushing changes for $total repositories"
-    
+
     for repo in "${repos[@]}"; do
         wait_for_job_slot
-        
+
         local repo_name="$(basename "$repo")"
-        
+
         (
             cd "$repo"
-            
+
             # Check if we have commits to push
             local unpushed="$(git log --oneline @{u}.. 2>/dev/null | wc -l | tr -d ' ' || echo "0")"
             if [[ $unpushed -eq 0 ]]; then
                 print_info "$repo_name: No commits to push"
                 exit 0
             fi
-            
+
             print_progress "Pushing: $repo_name"
-            
+
+            # Get current branch name with fallback
+            local current_branch="$(git branch --show-current 2>/dev/null || git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "main")"
+
+            # Check if branch name is empty
+            if [[ -z "$current_branch" ]]; then
+                print_error "$repo_name: Unable to determine current branch"
+                exit 1
+            fi
+
             # Push changes
-            if git push origin "$(git branch --show-current)" 2>&1; then
+            if git push origin "$current_branch" 2>&1; then
                 print_success "$repo_name: Push completed successfully"
             else
                 print_error "$repo_name: Push failed"
                 exit 1
             fi
         ) &
-        
+
         local pid=$!
         add_operation_pid "$pid" "git-push-$(basename "$repo")"
     done
-    
+
     wait_for_all_jobs
     print_success "Bulk Git push completed"
 }
@@ -503,32 +517,32 @@ bulk_git_push() {
 
 bulk_terraform_fmt() {
     print_section "Bulk Terraform Format"
-    
+
     local tf_dirs=($(find_terraform_directories))
     local total=${#tf_dirs[@]}
-    
+
     if [[ $total -eq 0 ]]; then
         print_warning "No Terraform directories found"
         return 0
     fi
-    
+
     if ! command -v terraform &>/dev/null; then
         print_error "Terraform is not installed"
         return 1
     fi
-    
+
     print_info "Formatting $total Terraform directories"
-    
+
     for dir in "${tf_dirs[@]}"; do
         wait_for_job_slot
-        
+
         local dir_name="$(basename "$dir")"
-        
+
         (
             print_progress "Formatting: $dir_name"
-            
+
             cd "$dir"
-            
+
             if terraform fmt -recursive 2>&1; then
                 print_success "$dir_name: Formatting completed successfully"
             else
@@ -536,43 +550,43 @@ bulk_terraform_fmt() {
                 exit 1
             fi
         ) &
-        
+
         local pid=$!
         add_operation_pid "$pid" "tf-fmt-$(basename "$dir")"
     done
-    
+
     wait_for_all_jobs
     print_success "Bulk Terraform format completed"
 }
 
 bulk_terraform_validate() {
     print_section "Bulk Terraform Validate"
-    
+
     local tf_dirs=($(find_terraform_directories))
     local total=${#tf_dirs[@]}
-    
+
     if [[ $total -eq 0 ]]; then
         print_warning "No Terraform directories found"
         return 0
     fi
-    
+
     if ! command -v terraform &>/dev/null; then
         print_error "Terraform is not installed"
         return 1
     fi
-    
+
     print_info "Validating $total Terraform directories"
-    
+
     for dir in "${tf_dirs[@]}"; do
         wait_for_job_slot
-        
+
         local dir_name="$(basename "$dir")"
-        
+
         (
             print_progress "Validating: $dir_name"
-            
+
             cd "$dir"
-            
+
             # Initialize if needed
             if [[ ! -d ".terraform" ]]; then
                 print_info "$dir_name: Initializing Terraform"
@@ -581,7 +595,7 @@ bulk_terraform_validate() {
                     exit 2
                 }
             fi
-            
+
             if terraform validate -no-color 2>&1; then
                 print_success "$dir_name: Validation passed"
             else
@@ -589,46 +603,46 @@ bulk_terraform_validate() {
                 exit 1
             fi
         ) &
-        
+
         local pid=$!
         add_operation_pid "$pid" "tf-validate-$(basename "$dir")"
     done
-    
+
     wait_for_all_jobs
     print_success "Bulk Terraform validate completed"
 }
 
 bulk_terraform_plan() {
     print_section "Bulk Terraform Plan"
-    
+
     local tf_dirs=($(find_terraform_directories))
     local total=${#tf_dirs[@]}
-    
+
     if [[ $total -eq 0 ]]; then
         print_warning "No Terraform directories found"
         return 0
     fi
-    
+
     if ! command -v terraform &>/dev/null; then
         print_error "Terraform is not installed"
         return 1
     fi
-    
+
     print_info "Creating plans for $total Terraform directories"
     local plan_dir="${TEMP_DIR}/terraform-plans-${TIMESTAMP}"
     mkdir -p "$plan_dir"
-    
+
     for dir in "${tf_dirs[@]}"; do
         wait_for_job_slot
-        
+
         local dir_name="$(basename "$dir")"
         local plan_file="${plan_dir}/${dir_name}.tfplan"
-        
+
         (
             print_progress "Planning: $dir_name"
-            
+
             cd "$dir"
-            
+
             # Initialize if needed
             if [[ ! -d ".terraform" ]]; then
                 print_info "$dir_name: Initializing Terraform"
@@ -637,11 +651,11 @@ bulk_terraform_plan() {
                     exit 2
                 }
             fi
-            
+
             # Create plan
             if terraform plan -detailed-exitcode -out="$plan_file" -no-color > "${plan_file}.txt" 2>&1; then
                 local exit_code=$?
-                
+
                 case $exit_code in
                     0)
                         print_success "$dir_name: No changes needed"
@@ -657,11 +671,11 @@ bulk_terraform_plan() {
                 exit 1
             fi
         ) &
-        
+
         local pid=$!
         add_operation_pid "$pid" "tf-plan-$(basename "$dir")"
     done
-    
+
     wait_for_all_jobs
     print_info "Plans saved to: $plan_dir"
     print_success "Bulk Terraform plan completed"
@@ -673,44 +687,44 @@ bulk_terraform_plan() {
 
 bulk_security_scan() {
     print_section "Bulk Security Scanning"
-    
+
     # Check for available security tools
     local tools_found=()
-    
+
     if command -v checkov &>/dev/null; then
         tools_found+=("checkov")
     fi
-    
+
     if command -v tfsec &>/dev/null; then
         tools_found+=("tfsec")
     fi
-    
+
     if command -v semgrep &>/dev/null; then
         tools_found+=("semgrep")
     fi
-    
+
     if command -v bandit &>/dev/null; then
         tools_found+=("bandit")
     fi
-    
+
     if [[ ${#tools_found[@]} -eq 0 ]]; then
         print_warning "No security scanning tools found (checkov, tfsec, semgrep, bandit)"
         run_basic_security_scan
         return
     fi
-    
+
     print_info "Found security tools: ${tools_found[*]}"
-    
+
     local scan_dir="${TEMP_DIR}/security-scans-${TIMESTAMP}"
     mkdir -p "$scan_dir"
-    
+
     # Run each available tool
     for tool in "${tools_found[@]}"; do
         wait_for_job_slot
-        
+
         (
             print_progress "Running: $tool"
-            
+
             case "$tool" in
                 "checkov")
                     checkov -d "$PROJECT_ROOT" --framework terraform --output json > "$scan_dir/checkov-results.json" 2>/dev/null || true
@@ -731,29 +745,29 @@ bulk_security_scan() {
                     }
                     ;;
             esac
-            
+
             print_success "$tool: Scan completed"
         ) &
-        
+
         local pid=$!
         add_operation_pid "$pid" "security-$tool"
     done
-    
+
     wait_for_all_jobs
-    
+
     # Generate summary report
     generate_security_summary "$scan_dir"
-    
+
     print_info "Security scan results saved to: $scan_dir"
     print_success "Bulk security scanning completed"
 }
 
 run_basic_security_scan() {
     print_info "Running basic security pattern scanning"
-    
+
     local scan_dir="${TEMP_DIR}/basic-security-scan-${TIMESTAMP}"
     mkdir -p "$scan_dir"
-    
+
     # Basic security patterns
     local patterns=(
         "password\s*=\s*[\"'][^\"']{8,}"
@@ -765,29 +779,29 @@ run_basic_security_scan() {
         "aws_access_key_id\s*=\s*[\"']AKIA[0-9A-Z]{16}[\"']"
         "aws_secret_access_key\s*=\s*[\"'][A-Za-z0-9/+=]{40}[\"']"
     )
-    
+
     print_info "Scanning for hardcoded secrets and credentials"
-    
+
     local results_file="$scan_dir/basic-security-results.txt"
     echo "Basic Security Scan Results - $(date)" > "$results_file"
     echo "=======================================" >> "$results_file"
-    
+
     local issues_found=0
-    
+
     for pattern in "${patterns[@]}"; do
         local matches=$(grep -r -E -i "$pattern" "$PROJECT_ROOT" \
             --include="*.tf" --include="*.tfvars" --include="*.yaml" --include="*.yml" \
             --include="*.json" --include="*.sh" --include="*.py" \
             --exclude-dir=".git" --exclude-dir=".terraform" --exclude-dir="node_modules" \
             2>/dev/null || true)
-        
+
         if [[ -n "$matches" ]]; then
             echo -e "\nPattern: $pattern" >> "$results_file"
             echo "$matches" >> "$results_file"
             ((issues_found++))
         fi
     done
-    
+
     if [[ $issues_found -eq 0 ]]; then
         print_success "No obvious security issues found"
         echo "No obvious security issues found" >> "$results_file"
@@ -795,28 +809,28 @@ run_basic_security_scan() {
         print_warning "$issues_found potential security issues found"
         echo "$issues_found potential security issues found" >> "$results_file"
     fi
-    
+
     print_info "Basic security scan results saved to: $results_file"
 }
 
 generate_security_summary() {
     local scan_dir="$1"
     local summary_file="$scan_dir/security-summary.txt"
-    
+
     print_info "Generating security summary"
-    
+
     {
         echo "Security Scan Summary - $(date)"
         echo "==============================="
         echo
-        
+
         # Process each tool's results
         for result_file in "$scan_dir"/*.json; do
             [[ -f "$result_file" ]] || continue
-            
+
             local tool_name="$(basename "$result_file" .json | cut -d'-' -f1)"
             echo "=== $tool_name Results ==="
-            
+
             case "$tool_name" in
                 "checkov")
                     if command -v jq &>/dev/null; then
@@ -839,14 +853,14 @@ generate_security_summary() {
             esac
             echo
         done
-        
+
         echo "Full results available in individual files:"
         ls "$scan_dir"/*.txt 2>/dev/null | while read -r file; do
             echo "- $(basename "$file")"
         done
-        
+
     } > "$summary_file"
-    
+
     print_success "Security summary generated: $summary_file"
 }
 
@@ -856,31 +870,31 @@ generate_security_summary() {
 
 bulk_dependency_update() {
     print_section "Bulk Dependency Updates"
-    
+
     local package_files=()
-    
+
     # Find different types of package files
     mapfile -t package_files < <(find "$PROJECT_ROOT" -name "package.json" -o -name "requirements.txt" -o -name "Gemfile" -o -name "go.mod" -o -name "Cargo.toml" -o -name "composer.json" 2>/dev/null)
-    
+
     if [[ ${#package_files[@]} -eq 0 ]]; then
         print_warning "No package files found"
         return 0
     fi
-    
+
     print_info "Found ${#package_files[@]} package files"
-    
+
     for file in "${package_files[@]}"; do
         wait_for_job_slot
-        
+
         local dir="$(dirname "$file")"
         local filename="$(basename "$file")"
         local project_name="$(basename "$dir")"
-        
+
         (
             print_progress "Updating dependencies: $project_name ($filename)"
-            
+
             cd "$dir"
-            
+
             case "$filename" in
                 "package.json")
                     if command -v npm &>/dev/null; then
@@ -938,11 +952,11 @@ bulk_dependency_update() {
                     ;;
             esac
         ) &
-        
+
         local pid=$!
         add_operation_pid "$pid" "deps-$project_name"
     done
-    
+
     wait_for_all_jobs
     print_success "Bulk dependency updates completed"
 }
@@ -960,41 +974,41 @@ find_terraform_git_references() {
 bulk_update_git_references() {
     local target_version="$1"
     local filter_repo="${2:-}"
-    
+
     if [[ -z "$target_version" ]]; then
         print_error "Target version is required (e.g., v1.0.6)"
         return 1
     fi
-    
+
     print_section "Bulk Git Reference Update to $target_version"
-    
+
     local tf_files=($(find_terraform_git_references))
     local total=${#tf_files[@]}
     local updated_count=0
-    
+
     if [[ $total -eq 0 ]]; then
         print_warning "No Terraform files with git references found"
         return 0
     fi
-    
+
     print_info "Found $total Terraform files with git references"
-    
+
     if [[ -n "$filter_repo" ]]; then
         print_info "Filtering for repository: $filter_repo"
     fi
-    
+
     for file in "${tf_files[@]}"; do
         wait_for_job_slot
-        
+
         local relative_path="${file#$PROJECT_ROOT/}"
-        
+
         (
             print_progress "Processing: $relative_path"
-            
+
             # Create backup
             local temp_file="${file}.tmp"
             local changes_made=false
-            
+
             # Process git references
             if [[ -n "$filter_repo" ]]; then
                 # Filter by specific repository
@@ -1011,7 +1025,7 @@ bulk_update_git_references() {
                     fi
                 fi
             fi
-            
+
             if [[ "$changes_made" == true ]]; then
                 mv "$temp_file" "$file"
                 print_success "$relative_path: Updated git references to $target_version"
@@ -1020,19 +1034,19 @@ bulk_update_git_references() {
                 rm -f "$temp_file"
                 print_info "$relative_path: No matching references found"
             fi
-            
+
         ) &
-        
+
         local pid=$!
         add_operation_pid "$pid" "git-ref-update-$(basename "$file")"
     done
-    
+
     wait_for_all_jobs
-    
+
     # Count updates
     updated_count=$(find "${STATUS_DIR}" -name "updated-*.count" 2>/dev/null | wc -l || echo "0")
     rm -f "${STATUS_DIR}"/updated-*.count 2>/dev/null
-    
+
     print_success "Git reference update completed: $updated_count files updated"
 }
 
@@ -1040,40 +1054,40 @@ bulk_update_git_references() {
 bulk_standardize_repo_names() {
     local old_name="${1:-mob-infrastructure-core}"
     local new_name="${2:-mob-infra-core}"
-    
+
     print_section "Standardizing Repository Names: $old_name → $new_name"
-    
+
     local tf_files=($(find_terraform_git_references))
     local total=${#tf_files[@]}
     local updated_count=0
-    
+
     if [[ $total -eq 0 ]]; then
         print_warning "No Terraform files with git references found"
         return 0
     fi
-    
+
     print_info "Found $total Terraform files with git references"
     print_info "Updating: $old_name → $new_name"
-    
+
     for file in "${tf_files[@]}"; do
         wait_for_job_slot
-        
+
         local relative_path="${file#$PROJECT_ROOT/}"
-        
+
         (
             print_progress "Processing: $relative_path"
-            
+
             # Create backup
             local temp_file="${file}.tmp"
             local changes_made=false
-            
+
             # Update repository names - handle multiple URL formats
             if sed -E "s|github\.com/EightpointIO/${old_name}\.git|github.com/EightpointIO/${new_name}.git|g; s|git@github\.com:EightpointIO/${old_name}\.git|git@github.com:EightpointIO/${new_name}.git|g; s|ssh://git@github\.com/EightpointIO/${old_name}\.git|ssh://git@github.com/EightpointIO/${new_name}.git|g" "$file" > "$temp_file"; then
                 if ! diff -q "$file" "$temp_file" >/dev/null 2>&1; then
                     changes_made=true
                 fi
             fi
-            
+
             if [[ "$changes_made" == true ]]; then
                 mv "$temp_file" "$file"
                 print_success "$relative_path: Updated repository name"
@@ -1082,19 +1096,19 @@ bulk_standardize_repo_names() {
                 rm -f "$temp_file"
                 print_info "$relative_path: No repository name changes needed"
             fi
-            
+
         ) &
-        
+
         local pid=$!
         add_operation_pid "$pid" "repo-name-update-$(basename "$file")"
     done
-    
+
     wait_for_all_jobs
-    
+
     # Count updates
     updated_count=$(find "${STATUS_DIR}" -name "repo-updated-*.count" 2>/dev/null | wc -l || echo "0")
     rm -f "${STATUS_DIR}"/repo-updated-*.count 2>/dev/null
-    
+
     print_success "Repository name standardization completed: $updated_count files updated"
 }
 
@@ -1102,34 +1116,34 @@ bulk_standardize_repo_names() {
 detect_latest_git_tag() {
     local repo_url="$1"
     local repo_name="$2"
-    
+
     # Try to get latest tag from GitHub API first
     if command -v curl >/dev/null 2>&1; then
         local api_url="https://api.github.com/repos/EightpointIO/${repo_name}/releases/latest"
         local latest_tag=$(curl -s "$api_url" | grep '"tag_name":' | cut -d'"' -f4 2>/dev/null || echo "")
-        
+
         if [[ -n "$latest_tag" ]]; then
             echo "$latest_tag"
             return 0
         fi
     fi
-    
+
     # Fallback: clone and get latest tag
     local temp_clone_dir="${TEMP_DIR}/clone-${repo_name}-${RANDOM}"
     mkdir -p "$temp_clone_dir"
-    
+
     if git clone --depth 1 "$repo_url" "$temp_clone_dir" >/dev/null 2>&1; then
         cd "$temp_clone_dir"
         local latest_tag=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
         cd - >/dev/null
         rm -rf "$temp_clone_dir"
-        
+
         if [[ -n "$latest_tag" ]]; then
             echo "$latest_tag"
             return 0
         fi
     fi
-    
+
     print_warning "Could not detect latest tag for $repo_name"
     return 1
 }
@@ -1138,30 +1152,30 @@ detect_latest_git_tag() {
 bulk_drift_detection() {
     local repo_name="${1:-mob-infra-core}"
     local repo_url="https://github.com/EightpointIO/${repo_name}.git"
-    
+
     print_section "Git Reference Drift Detection for $repo_name"
-    
+
     # Detect latest tag
     print_info "Detecting latest tag for $repo_name..."
     local latest_tag=$(detect_latest_git_tag "$repo_url" "$repo_name")
-    
+
     if [[ -z "$latest_tag" ]]; then
         print_error "Could not detect latest tag for $repo_name"
         return 1
     fi
-    
+
     print_success "Latest tag detected: $latest_tag"
-    
+
     # Find current references and count outdated ones
     print_info "Scanning for current git references..."
-    
+
     local tf_files=($(find_terraform_git_references))
     local outdated_count=0
     local refs_file="${TEMP_DIR}/outdated_refs_${RANDOM}.txt"
-    
+
     for file in "${tf_files[@]}"; do
         local relative_path="${file#$PROJECT_ROOT/}"
-        
+
         # Check this file for outdated references to the target repo
         while IFS= read -r line; do
             local current_ref=$(echo "$line" | sed -n 's/.*?ref=\([^"]*\).*/\1/p')
@@ -1170,20 +1184,20 @@ bulk_drift_detection() {
             fi
         done < <(grep -n "git::.*github\.com/[^/]*/${repo_name}\.git" "$file" 2>/dev/null)
     done
-    
+
     if [[ -f "$refs_file" ]]; then
         outdated_count=$(wc -l < "$refs_file" 2>/dev/null || echo "0")
     fi
-    
+
     if [[ $outdated_count -eq 0 ]]; then
         print_success "All references are up to date with $latest_tag"
         rm -f "$refs_file"
         return 0
     fi
-    
+
     print_warning "Found $outdated_count outdated references for $repo_name"
     echo -e "\n${YELLOW}Outdated references:${NC}"
-    
+
     if [[ -f "$refs_file" ]]; then
         while IFS= read -r ref_info; do
             local file_path=$(echo "$ref_info" | cut -d: -f1)
@@ -1192,10 +1206,10 @@ bulk_drift_detection() {
         done < "$refs_file"
         rm -f "$refs_file"
     fi
-    
+
     echo -e "\n${BLUE}Would you like to update all references to $latest_tag? (y/N):${NC}"
     read -r update_choice
-    
+
     if [[ "$update_choice" =~ ^[Yy]$ ]]; then
         bulk_update_git_references "$latest_tag" "$repo_name"
     else
@@ -1206,61 +1220,61 @@ bulk_drift_detection() {
 # Show git reference summary
 show_git_reference_summary() {
     print_section "Git Reference Summary"
-    
+
     local tf_files=($(find_terraform_git_references))
     local total=${#tf_files[@]}
-    
+
     if [[ $total -eq 0 ]]; then
         print_warning "No Terraform files with git references found"
         return 0
     fi
-    
+
     print_info "Analyzing $total Terraform files..."
-    
+
     # Create temporary file to collect references
     local refs_file="${TEMP_DIR}/git_refs_summary_${RANDOM}.txt"
-    
+
     # Collect all references from all files
     for file in "${tf_files[@]}"; do
         local relative_path="${file#$PROJECT_ROOT/}"
-        
+
         # Extract git references from this file
         grep -n "git::" "$file" 2>/dev/null | while IFS= read -r line; do
             local line_content=$(echo "$line" | cut -d: -f2-)
             local current_ref=$(echo "$line_content" | sed -n 's/.*?ref=\([^"]*\).*/\1/p')
             local repo_name=$(echo "$line_content" | sed -n 's/.*github\.com\/[^/]*\/\([^/]*\)\.git.*/\1/p')
-            
+
             if [[ -n "$repo_name" && -n "$current_ref" ]]; then
                 echo "${repo_name}:${current_ref}:${relative_path}" >> "$refs_file"
             fi
         done
     done
-    
+
     if [[ ! -f "$refs_file" ]] || [[ ! -s "$refs_file" ]]; then
         print_warning "No git references found in Terraform files"
         return 0
     fi
-    
+
     # Display summary
     echo -e "\n${WHITE}${BOLD}Repository Reference Summary:${NC}"
-    
+
     # Sort and count unique repository:version combinations
     sort "$refs_file" | uniq -c | while read -r count repo_version_file; do
         local repo=$(echo "$repo_version_file" | cut -d: -f1)
         local version=$(echo "$repo_version_file" | cut -d: -f2)
         local sample_file=$(echo "$repo_version_file" | cut -d: -f3)
-        
+
         echo -e "\n${CYAN}$repo${NC} @ ${YELLOW}$version${NC} (${count} references)"
         echo -e "  ${DIM}Example: $sample_file${NC}"
-        
+
         if [[ $count -gt 1 ]]; then
             echo -e "  ${DIM}... and $((count - 1)) more files${NC}"
         fi
     done
-    
+
     # Clean up
     rm -f "$refs_file"
-    
+
     print_success "Git reference summary completed"
 }
 
@@ -1271,45 +1285,45 @@ show_git_reference_summary() {
 
 generate_operations_summary() {
     print_header "OPERATIONS SUMMARY"
-    
+
     # Ensure arrays are properly initialized
     local successful_count=${#SUCCESSFUL_OPERATIONS[@]}
     local failed_count=${#FAILED_OPERATIONS[@]}
     local skipped_count=${#SKIPPED_OPERATIONS[@]}
     local total_ops=$((successful_count + failed_count + skipped_count))
     local success_rate=0
-    
+
     if [[ $total_ops -gt 0 ]]; then
         success_rate=$(( (successful_count * 100) / total_ops ))
-        
+
         echo -e "${WHITE}Repository Operation Statistics:${NC}"
         echo -e "  Total Operations: ${BLUE}$total_ops${NC}"
         echo -e "  Successful: ${GREEN}$successful_count${NC}"
         echo -e "  Failed: ${RED}$failed_count${NC}"
         echo -e "  Skipped: ${YELLOW}$skipped_count${NC}"
         echo -e "  Success Rate: ${CYAN}$success_rate%${NC}"
-        
+
         if [[ ${#SUCCESSFUL_OPERATIONS[@]} -gt 0 ]]; then
             echo -e "\n${GREEN}Successful Operations:${NC}"
             for op in "${SUCCESSFUL_OPERATIONS[@]}"; do
                 echo -e "  ${GREEN}✓${NC} $op"
             done
         fi
-        
+
         if [[ ${#FAILED_OPERATIONS[@]} -gt 0 ]]; then
             echo -e "\n${RED}Failed Operations:${NC}"
             for op in "${FAILED_OPERATIONS[@]}"; do
                 echo -e "  ${RED}✗${NC} $op"
             done
         fi
-        
+
         if [[ ${#SKIPPED_OPERATIONS[@]} -gt 0 ]]; then
             echo -e "\n${YELLOW}Skipped Operations:${NC}"
             for op in "${SKIPPED_OPERATIONS[@]}"; do
                 echo -e "  ${YELLOW}⊘${NC} $op"
             done
         fi
-        
+
         echo -e "\n${WHITE}Overall Success Score: ${NC}"
         if [[ $success_rate -ge 90 ]]; then
             echo -e "  ${GREEN}$success_rate/100 (Excellent)${NC}"
@@ -1324,7 +1338,7 @@ generate_operations_summary() {
         echo -e "${CYAN}This was a read-only analysis operation.${NC}"
         echo -e "${WHITE}No repository modifications were performed.${NC}"
     fi
-    
+
     echo -e "\n${BLUE}Temp Directory:${NC} $TEMP_DIR"
 }
 
@@ -1395,13 +1409,13 @@ show_help() {
 main() {
     # Initialize
     init_directories
-    
+
     # Parse global options
     local operation=""
     local commit_message=""
     local force=false
     local dry_run=false
-    
+
     while [[ $# -gt 0 ]]; do
         case $1 in
             --parallel)
@@ -1446,23 +1460,23 @@ main() {
                 ;;
         esac
     done
-    
+
     if [[ -z "$operation" ]]; then
         print_error "No operation specified"
         show_help
         exit 1
     fi
-    
+
     # Start operations
     print_header "Bulk Infrastructure Operations"
     print_info "Operation: $operation"
     print_info "Parallel jobs: $MAX_PARALLEL_JOBS"
     print_info "Project root: $PROJECT_ROOT"
-    
+
     if [[ "$dry_run" == true ]]; then
         print_warning "DRY RUN MODE - No changes will be made"
     fi
-    
+
     # Execute requested operation
     case "$operation" in
         "git-status")
@@ -1547,13 +1561,13 @@ main() {
             exit 1
             ;;
     esac
-    
+
     # Generate summary
     generate_operations_summary
-    
+
     # Clean up current session temp files
     rm -rf "$STATUS_DIR" 2>/dev/null || true
-    
+
     print_success "Bulk operations completed successfully!"
 }
 
@@ -1565,10 +1579,10 @@ cleanup() {
             kill "$pid" 2>/dev/null || true
         done
     fi
-    
+
     # Wait for jobs to terminate
     wait 2>/dev/null || true
-    
+
     print_info "Cleanup completed"
 }
 
